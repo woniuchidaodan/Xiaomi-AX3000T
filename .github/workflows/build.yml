@@ -26,13 +26,19 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 克隆 ImmortalWrt 官方仓库并锁定 24.10.4 commit
+      - name: 克隆 ImmortalWrt 官方仓库（openwrt-24.10 分支）
         uses: actions/checkout@v5
         with:
           repository: 'immortalwrt/immortalwrt'
-          ref: 'e717d133ed6d'
+          ref: 'openwrt-24.10'
           path: ImmortalWrt
-          fetch-depth: 0                               # ✅ 拉取完整历史，确保 commit 可解析
+          fetch-depth: 0
+
+      - name: 切换到 24.10.4 commit（e717d133ed6d）
+        working-directory: ImmortalWrt
+        run: |
+          git checkout e717d133ed6d
+          echo "✅ 已锁定到 commit: $(git rev-parse --short HEAD)"
 
       - name: 复制配置文件到 ImmortalWrt
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
@@ -98,13 +104,19 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 克隆 ImmortalWrt 官方仓库并锁定 24.10.4 commit
+      - name: 克隆 ImmortalWrt 官方仓库（openwrt-24.10 分支）
         uses: actions/checkout@v5
         with:
           repository: 'immortalwrt/immortalwrt'
-          ref: 'e717d133ed6d'
+          ref: 'openwrt-24.10'
           path: ImmortalWrt
           fetch-depth: 0
+
+      - name: 切换到 24.10.4 commit（e717d133ed6d）
+        working-directory: ImmortalWrt
+        run: |
+          git checkout e717d133ed6d
+          echo "✅ 已锁定到 commit: $(git rev-parse --short HEAD)"
 
       - name: 复制配置文件
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
