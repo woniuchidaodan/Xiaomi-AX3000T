@@ -1,7 +1,32 @@
 #!/bin/bash
+
+# ============================================
+# 1. 修改默认 IP
+# ============================================
 sed -i 's/192.168.1.1/192.168.5.1/g' package/base-files/files/bin/config_generate
+
+# ============================================
+# 2. 修改默认主机名
+# ============================================
 sed -i 's/ImmortalWrt/AX3000T/g' package/base-files/files/bin/config_generate
 
+# ============================================
+# 3. 设置 Argon 主题（增加存在判断，防止白屏）
+# ============================================
+mkdir -p package/base-files/files/etc/uci-defaults
+cat > package/base-files/files/etc/uci-defaults/99-set-argon-theme << 'EOT'
+# 检查 Argon 主题是否已编译进固件
+if [ -d "/www/luci-static/argon" ]; then
+    uci set luci.main.mediaurlbase='/luci-static/argon'
+    uci commit luci
+fi
+exit 0
+EOT
+chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
+
+# ============================================
+# 4. 写入第三方 opkg 软件源（供刷机后使用）
+# ============================================
 mkdir -p package/base-files/files/etc/opkg
 cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
 src/gz openwrt_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
@@ -12,13 +37,9 @@ src/gz openwrt_packages https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/
 src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/routing
 EOF
 
-mkdir -p package/base-files/files/etc/uci-defaults
-cat > package/base-files/files/etc/uci-defaults/99-set-default-theme << 'EOT'
-uci set luci.main.mediaurlbase='/luci-static/argon'
-uci commit luci
-EOT
-chmod +x package/base-files/files/etc/uci-defaults/99-set-default-theme
-
+# ============================================
+# 5. 固定版本显示为 24.10.4（消除 SNAPSHOT）
+# ============================================
 mkdir -p package/base-files/files/etc
 cat > package/base-files/files/etc/openwrt_release << 'EOF'
 DISTRIB_ID='ImmortalWrt'
@@ -29,8 +50,11 @@ DISTRIB_ARCH='aarch64_cortex-a53'
 DISTRIB_DESCRIPTION='ImmortalWrt 24.10.4 r33602-e717d133ed6d'
 EOF
 
+# ============================================
+# 6. 写入 customfeeds.conf（供 opkg 使用）
+# ============================================
 mkdir -p package/system/opkg/files
-cat >> package/system/opkg/files/customfeeds.conf << 'EOF'
+cat > package/system/opkg/files/customfeeds.conf << 'EOF'
 src/gz openwrt_ai_kenzok8 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kenzok8
 src/gz openwrt_ai_small https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/small
 src/gz openwrt_ai_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
