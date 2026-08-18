@@ -15,7 +15,7 @@ on:
 jobs:
   build:
     if: ${{inputs.ssh == false}}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04                    # ✅ 已改为 22.04
     name: 🚀 编译 (Build)
     steps:
       - name: 下载编译所需的依赖
@@ -87,7 +87,7 @@ jobs:
   build-ssh:
     if: ${{inputs.ssh == true}}
     name: 🚀 编译 (Build) - SSH
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04                    # ✅ 已改为 22.04
     steps:
       - name: 下载编译所需的依赖
         run: |
