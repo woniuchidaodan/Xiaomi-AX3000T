@@ -78,7 +78,8 @@ jobs:
           fi
           
           echo "✅ 设备类型已锁定为 xiaomi_mi-router-ax3000t"
-          grep "CONFIG_TARGET_DEVICE" .config
+          # 显示当前设备配置（加上 || true 防止 grep 非零退出导致失败）
+          grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 编译前上传配置
         uses: actions/upload-artifact@v6
@@ -159,7 +160,7 @@ jobs:
             exit 1
           fi
           echo "✅ 设备类型已锁定为 xiaomi_mi-router-ax3000t"
-          grep "CONFIG_TARGET_DEVICE" .config
+          grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 开启 SSH 服务
         uses: lhotari/action-upterm@v1
