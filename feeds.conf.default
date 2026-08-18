@@ -1,9 +1,6 @@
 src-git packages https://github.com/immortalwrt/packages.git;openwrt-24.10
 src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10
-src-git routing https://github.com/immortalwrt/routing.git;openwrt-24.10
-src-git telephony https://github.com/immortalwrt/telephony.git;openwrt-24.10
 src-git ua3f https://github.com/SunBK201/UA3F.git
 src-git minieap https://github.com/ysc3839/luci-app-minieap.git
-src-git mentohust https://github.com/BoringCat/luci-app-mentohust.git
 src-git kenzo https://github.com/kenzok8/openwrt-packages
 src-git small https://github.com/kenzok8/small
