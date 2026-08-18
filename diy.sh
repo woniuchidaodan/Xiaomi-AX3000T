@@ -1,21 +1,10 @@
 #!/bin/bash
 
-# ============================================
-# 1. 修改默认 IP
-# ============================================
 sed -i 's/192.168.1.1/192.168.5.1/g' package/base-files/files/bin/config_generate
-
-# ============================================
-# 2. 修改默认主机名
-# ============================================
 sed -i 's/ImmortalWrt/AX3000T/g' package/base-files/files/bin/config_generate
 
-# ============================================
-# 3. 设置 Argon 主题（增加存在判断，防止白屏）
-# ============================================
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-set-argon-theme << 'EOT'
-# 检查 Argon 主题是否已编译进固件
 if [ -d "/www/luci-static/argon" ]; then
     uci set luci.main.mediaurlbase='/luci-static/argon'
     uci commit luci
@@ -24,9 +13,6 @@ exit 0
 EOT
 chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
 
-# ============================================
-# 4. 写入第三方 opkg 软件源（仅此一处）
-# ============================================
 mkdir -p package/base-files/files/etc/opkg
 cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
 src/gz openwrt_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
@@ -37,9 +23,6 @@ src/gz openwrt_packages https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/
 src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/routing
 EOF
 
-# ============================================
-# 5. 固定版本显示为 24.10.4（消除 SNAPSHOT）
-# ============================================
 mkdir -p package/base-files/files/etc
 cat > package/base-files/files/etc/openwrt_release << 'EOF'
 DISTRIB_ID='ImmortalWrt'
