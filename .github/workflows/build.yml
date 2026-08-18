@@ -58,34 +58,19 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 豆包方案：安全配置生成 ==========
-      - name: 生成 AX3000T 设备配置（安全版）
+      # ========== 豆包认可的方案 ==========
+      - name: 生成 AX3000T 设备配置
         working-directory: ImmortalWrt
         run: |
-          # 1. 清空旧配置
           rm -f .config
-
-          # 2. 使用原生命令生成 AX3000T 基础配置
           make TARGET=mediatek/filogic PROFILE=xiaomi_mi-router-ax3000t defconfig
-
-          # 3. 使用 scripts/config 工具逐行安全导入软件包配置（无冲突）
-          while IFS= read -r line; do
-            # 只处理以 CONFIG_PACKAGE_ 开头的有效配置行
-            if [[ "$line" =~ ^CONFIG_PACKAGE_ ]]; then
-              ./scripts/config "$line"
-            fi
-          done < seed.config
-
-          # 4. 更新依赖
+          cat seed.config >> .config
           make oldconfig
-
-          # 5. 校验设备类型（防止命令失效）
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中为 xiaomi_mi-router-ax3000t！"
             exit 1
           fi
-
-          echo "✅ 配置已安全生成：AX3000T 基础 + 自定义软件包（无冲突）"
+          echo "✅ 配置已生成：AX3000T 基础 + 自定义软件包"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 编译前上传配置
@@ -157,22 +142,18 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      - name: 生成 AX3000T 设备配置（安全版）
+      - name: 生成 AX3000T 设备配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
           make TARGET=mediatek/filogic PROFILE=xiaomi_mi-router-ax3000t defconfig
-          while IFS= read -r line; do
-            if [[ "$line" =~ ^CONFIG_PACKAGE_ ]]; then
-              ./scripts/config "$line"
-            fi
-          done < seed.config
+          cat seed.config >> .config
           make oldconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中为 xiaomi_mi-router-ax3000t！"
             exit 1
           fi
-          echo "✅ 配置已安全生成：AX3000T 基础 + 自定义软件包（无冲突）"
+          echo "✅ 配置已生成：AX3000T 基础 + 自定义软件包"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 开启 SSH 服务
