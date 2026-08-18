@@ -45,7 +45,7 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      - name: 复制自定义配置文件（feeds、diy.sh、seed.config）
+      - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
 
       - name: 运行 diy.sh
@@ -58,21 +58,37 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      - name: 生成正确设备配置（使用官方预置配置文件）
+      # ========== 豆包方案：安全配置生成 ==========
+      - name: 生成 AX3000T 设备配置（安全版）
         working-directory: ImmortalWrt
         run: |
-          # 删除可能存在的旧配置
+          # 1. 清空旧配置
           rm -f .config
-          # 复制官方为 AX3000T 预置的配置文件
-          cp target/linux/mediatek/filogic/configs/config.xiaomi_mi-router-ax3000t .config
-          # 追加自定义软件包（seed.config 内容）
-          cat seed.config >> .config
-          # 使用 oldconfig 合并配置，自动处理依赖
+
+          # 2. 使用原生命令生成 AX3000T 基础配置
+          make TARGET=mediatek/filogic PROFILE=xiaomi_mi-router-ax3000t defconfig
+
+          # 3. 使用 scripts/config 工具逐行安全导入软件包配置（无冲突）
+          while IFS= read -r line; do
+            # 只处理以 CONFIG_PACKAGE_ 开头的有效配置行
+            if [[ "$line" =~ ^CONFIG_PACKAGE_ ]]; then
+              ./scripts/config "$line"
+            fi
+          done < seed.config
+
+          # 4. 更新依赖
           make oldconfig
-          echo "✅ 已基于官方预置配置 + 自定义软件包生成配置"
+
+          # 5. 校验设备类型（防止命令失效）
+          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
+            echo "❌ 错误：设备类型未正确选中为 xiaomi_mi-router-ax3000t！"
+            exit 1
+          fi
+
+          echo "✅ 配置已安全生成：AX3000T 基础 + 自定义软件包（无冲突）"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
-      - name: 编译前上传配置（便于调试）
+      - name: 编译前上传配置
         uses: actions/upload-artifact@v6
         with:
           name: config-before-build
@@ -141,14 +157,22 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      - name: 生成正确设备配置（使用官方预置配置文件）
+      - name: 生成 AX3000T 设备配置（安全版）
         working-directory: ImmortalWrt
         run: |
           rm -f .config
-          cp target/linux/mediatek/filogic/configs/config.xiaomi_mi-router-ax3000t .config
-          cat seed.config >> .config
+          make TARGET=mediatek/filogic PROFILE=xiaomi_mi-router-ax3000t defconfig
+          while IFS= read -r line; do
+            if [[ "$line" =~ ^CONFIG_PACKAGE_ ]]; then
+              ./scripts/config "$line"
+            fi
+          done < seed.config
           make oldconfig
-          echo "✅ 已基于官方预置配置 + 自定义软件包生成配置"
+          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
+            echo "❌ 错误：设备类型未正确选中为 xiaomi_mi-router-ax3000t！"
+            exit 1
+          fi
+          echo "✅ 配置已安全生成：AX3000T 基础 + 自定义软件包（无冲突）"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 开启 SSH 服务
