@@ -15,7 +15,7 @@ on:
 jobs:
   build:
     if: ${{inputs.ssh == false}}
-    runs-on: ubuntu-22.04                    # ✅ 已改为 22.04
+    runs-on: ubuntu-22.04
     name: 🚀 编译 (Build)
     steps:
       - name: 下载编译所需的依赖
@@ -26,12 +26,18 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 克隆 ImmortalWrt 官方仓库并锁定 24.10.4 commit
+      - name: 克隆 ImmortalWrt 官方仓库
         uses: actions/checkout@v5
         with:
           repository: 'immortalwrt/immortalwrt'
-          ref: 'e717d133ed6d'
+          ref: 'openwrt-24.10'
           path: ImmortalWrt
+
+      - name: 切换到 24.10.4 commit
+        working-directory: ImmortalWrt
+        run: |
+          git checkout e717d133ed6d
+          echo "✅ 已锁定到 commit: $(git rev-parse --short HEAD)"
 
       - name: 复制配置文件到 ImmortalWrt
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
@@ -87,7 +93,7 @@ jobs:
   build-ssh:
     if: ${{inputs.ssh == true}}
     name: 🚀 编译 (Build) - SSH
-    runs-on: ubuntu-22.04                    # ✅ 已改为 22.04
+    runs-on: ubuntu-22.04
     steps:
       - name: 下载编译所需的依赖
         run: |
@@ -97,12 +103,18 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 克隆 ImmortalWrt 官方仓库并锁定 24.10.4 commit
+      - name: 克隆 ImmortalWrt 官方仓库
         uses: actions/checkout@v5
         with:
           repository: 'immortalwrt/immortalwrt'
-          ref: 'e717d133ed6d'
+          ref: 'openwrt-24.10'
           path: ImmortalWrt
+
+      - name: 切换到 24.10.4 commit
+        working-directory: ImmortalWrt
+        run: |
+          git checkout e717d133ed6d
+          echo "✅ 已锁定到 commit: $(git rev-parse --short HEAD)"
 
       - name: 复制配置文件
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
