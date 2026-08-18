@@ -1,0 +1,181 @@
+name: 🚀 编译 (Build) - ImmortalWrt 24.10.4 for AX3000T
+
+on:
+  workflow_dispatch:
+    inputs:
+      multithreading:
+        description: '开启多线程编译 (Enable multithreading build)'
+        type: boolean
+        default: true
+      ssh:
+        description: '使用 ssh 连接到编译环境 (Connect to the build environment using ssh)'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    if: ${{inputs.ssh == false}}
+    runs-on: ubuntu-22.04
+    name: 🚀 编译 (Build)
+    steps:
+      - name: 下载编译所需的依赖
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
+
+      - name: 克隆当前仓库
+        uses: actions/checkout@v5
+
+      - name: 克隆 ImmortalWrt 官方仓库（openwrt-24.10 分支）
+        uses: actions/checkout@v5
+        with:
+          repository: 'immortalwrt/immortalwrt'
+          ref: 'openwrt-24.10'
+          path: ImmortalWrt
+          fetch-depth: 0
+
+      - name: 切换到 24.10.4 commit（e717d133ed6d）
+        working-directory: ImmortalWrt
+        run: |
+          git checkout e717d133ed6d
+          echo "✅ 已锁定到 commit: $(git rev-parse --short HEAD)"
+
+      - name: 手动克隆 UA3F 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/SunBK201/UA3F.git package/UA3F
+
+      - name: 复制自定义配置文件（feeds、diy.sh、seed.config）
+        run: cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
+
+      - name: 运行 diy.sh
+        working-directory: ImmortalWrt
+        run: |
+          chmod +x diy.sh
+          ./diy.sh
+
+      - name: 更新并下载 feeds
+        working-directory: ImmortalWrt
+        run: ./scripts/feeds update -a && ./scripts/feeds install -a
+
+      - name: 生成正确设备配置（使用官方预置配置文件）
+        working-directory: ImmortalWrt
+        run: |
+          # 删除可能存在的旧配置
+          rm -f .config
+          # 复制官方为 AX3000T 预置的配置文件
+          cp target/linux/mediatek/filogic/configs/config.xiaomi_mi-router-ax3000t .config
+          # 追加自定义软件包（seed.config 内容）
+          cat seed.config >> .config
+          # 使用 oldconfig 合并配置，自动处理依赖
+          make oldconfig
+          echo "✅ 已基于官方预置配置 + 自定义软件包生成配置"
+          grep "CONFIG_TARGET_DEVICE" .config || true
+
+      - name: 编译前上传配置（便于调试）
+        uses: actions/upload-artifact@v6
+        with:
+          name: config-before-build
+          path: |
+            ImmortalWrt/feeds.conf.default
+            ImmortalWrt/.config
+
+      - name: 多线程编译
+        if: ${{inputs.multithreading == true}}
+        working-directory: ImmortalWrt
+        run: make -j$(nproc) V=s
+
+      - name: 单线程编译
+        if: ${{inputs.multithreading == false}}
+        working-directory: ImmortalWrt
+        run: make -j1 V=s
+
+      - name: 上传编译结果
+        uses: actions/upload-artifact@v6
+        with:
+          name: ImmortalWrt_24.10.4_AX3000T
+          path: ImmortalWrt/bin/targets
+
+  build-ssh:
+    if: ${{inputs.ssh == true}}
+    name: 🚀 编译 (Build) - SSH
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 下载编译所需的依赖
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
+
+      - name: 克隆当前仓库
+        uses: actions/checkout@v5
+
+      - name: 克隆 ImmortalWrt 官方仓库（openwrt-24.10 分支）
+        uses: actions/checkout@v5
+        with:
+          repository: 'immortalwrt/immortalwrt'
+          ref: 'openwrt-24.10'
+          path: ImmortalWrt
+          fetch-depth: 0
+
+      - name: 切换到 24.10.4 commit（e717d133ed6d）
+        working-directory: ImmortalWrt
+        run: |
+          git checkout e717d133ed6d
+          echo "✅ 已锁定到 commit: $(git rev-parse --short HEAD)"
+
+      - name: 手动克隆 UA3F 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/SunBK201/UA3F.git package/UA3F
+
+      - name: 复制自定义配置文件
+        run: cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
+
+      - name: 运行 diy.sh
+        working-directory: ImmortalWrt
+        run: |
+          chmod +x diy.sh
+          ./diy.sh
+
+      - name: 更新并下载 feeds
+        working-directory: ImmortalWrt
+        run: ./scripts/feeds update -a && ./scripts/feeds install -a
+
+      - name: 生成正确设备配置（使用官方预置配置文件）
+        working-directory: ImmortalWrt
+        run: |
+          rm -f .config
+          cp target/linux/mediatek/filogic/configs/config.xiaomi_mi-router-ax3000t .config
+          cat seed.config >> .config
+          make oldconfig
+          echo "✅ 已基于官方预置配置 + 自定义软件包生成配置"
+          grep "CONFIG_TARGET_DEVICE" .config || true
+
+      - name: 开启 SSH 服务
+        uses: lhotari/action-upterm@v1
+        with:
+          wait-timeout-minutes: 20
+
+      - name: 编译前上传配置
+        uses: actions/upload-artifact@v6
+        with:
+          name: config-before-build
+          path: |
+            ImmortalWrt/feeds.conf.default
+            ImmortalWrt/.config
+
+      - name: 多线程编译
+        if: ${{inputs.multithreading == true}}
+        working-directory: ImmortalWrt
+        run: make -j$(nproc) V=s
+
+      - name: 单线程编译
+        if: ${{inputs.multithreading == false}}
+        working-directory: ImmortalWrt
+        run: make -j1 V=s
+
+      - name: 上传编译结果
+        uses: actions/upload-artifact@v6
+        with:
+          name: ImmortalWrt_24.10.4_AX3000T
+          path: ImmortalWrt/bin/targets
