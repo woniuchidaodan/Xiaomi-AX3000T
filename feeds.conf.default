@@ -1,5 +1,4 @@
 src-git packages https://github.com/immortalwrt/packages.git;openwrt-24.10
 src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10
 src-git ua3f https://github.com/SunBK201/UA3F.git
-src-git minieap https://github.com/ysc3839/luci-app-minieap.git
-src-git kenzo https://github.com/kenzok8/openwrt-packages
+src-git quickstart https://github.com/animegasan/luci-app-quickstart.git
