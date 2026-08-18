@@ -25,7 +25,7 @@ EOT
 chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
 
 # ============================================
-# 4. 写入第三方 opkg 软件源（供刷机后使用）
+# 4. 写入第三方 opkg 软件源（仅此一处）
 # ============================================
 mkdir -p package/base-files/files/etc/opkg
 cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
@@ -48,14 +48,4 @@ DISTRIB_REVISION='r33602-e717d133ed6d'
 DISTRIB_TARGET='mediatek/filogic'
 DISTRIB_ARCH='aarch64_cortex-a53'
 DISTRIB_DESCRIPTION='ImmortalWrt 24.10.4 r33602-e717d133ed6d'
-EOF
-
-# ============================================
-# 6. 写入 customfeeds.conf（供 opkg 使用）
-# ============================================
-mkdir -p package/system/opkg/files
-cat > package/system/opkg/files/customfeeds.conf << 'EOF'
-src/gz openwrt_ai_kenzok8 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kenzok8
-src/gz openwrt_ai_small https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/small
-src/gz openwrt_ai_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
 EOF
