@@ -33,4 +33,5 @@ mkdir -p package/system/opkg/files
 cat >> package/system/opkg/files/customfeeds.conf << 'EOF'
 src/gz openwrt_ai_kenzok8 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kenzok8
 src/gz openwrt_ai_small https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/small
+src/gz openwrt_ai_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
 EOF
