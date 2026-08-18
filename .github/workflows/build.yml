@@ -58,18 +58,30 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 豆包认可的方案 ==========
-      - name: 生成 AX3000T 设备配置
+      # ========== 豆包方案1：适配 24.10 分支的配置生成 ==========
+      - name: 生成 AX3000T 设备配置（适配24.10分支修复版）
         working-directory: ImmortalWrt
         run: |
           rm -f .config
-          make TARGET=mediatek/filogic PROFILE=xiaomi_mi-router-ax3000t defconfig
-          cat seed.config >> .config
-          make oldconfig
+
+          # 1. 生成 filogic 平台基础配置
+          make TARGET=mediatek/filogic defconfig
+
+          # 2. 强制写入 AX3000T 设备开关
+          echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y" >> .config
+
+          # 3. 追加自定义软件包配置（seed.config 在仓库根目录，和 ImmortalWrt 同级）
+          grep '^CONFIG_PACKAGE_' ../seed.config >> .config
+
+          # 4. 自动应答所有交互，防止卡住（关键！）
+          yes "" | make oldconfig
+
+          # 5. 校验设备是否被正确锁定
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 错误：设备类型未正确选中为 xiaomi_mi-router-ax3000t！"
+            echo "❌ 错误：设备类型未正确选中！"
             exit 1
           fi
+
           echo "✅ 配置已生成：AX3000T 基础 + 自定义软件包"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
@@ -142,15 +154,16 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      - name: 生成 AX3000T 设备配置
+      - name: 生成 AX3000T 设备配置（适配24.10分支修复版）
         working-directory: ImmortalWrt
         run: |
           rm -f .config
-          make TARGET=mediatek/filogic PROFILE=xiaomi_mi-router-ax3000t defconfig
-          cat seed.config >> .config
-          make oldconfig
+          make TARGET=mediatek/filogic defconfig
+          echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y" >> .config
+          grep '^CONFIG_PACKAGE_' ../seed.config >> .config
+          yes "" | make oldconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 错误：设备类型未正确选中为 xiaomi_mi-router-ax3000t！"
+            echo "❌ 错误：设备类型未正确选中！"
             exit 1
           fi
           echo "✅ 配置已生成：AX3000T 基础 + 自定义软件包"
