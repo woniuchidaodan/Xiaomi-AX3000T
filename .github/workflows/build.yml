@@ -40,6 +40,16 @@ jobs:
           git checkout e717d133ed6d
           echo "✅ 已锁定到 commit: $(git rev-parse --short HEAD)"
 
+      - name: 手动克隆 UA3F 源码到 package 目录
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/SunBK201/UA3F.git package/UA3F
+
+      - name: 手动克隆 quickstart 源码到 package 目录
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/animegasan/luci-app-quickstart.git package/quickstart
+
       - name: 复制配置文件到 ImmortalWrt
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
 
@@ -49,7 +59,7 @@ jobs:
           chmod +x diy.sh
           ./diy.sh
 
-      - name: 更新并下载 feeds
+      - name: 更新并下载 feeds（仅官方源）
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
@@ -59,26 +69,15 @@ jobs:
       - name: 强制锁定设备类型为 xiaomi_mi-router-ax3000t
         working-directory: ImmortalWrt
         run: |
-          # 先运行 defconfig 生成完整配置（包含平台默认）
           make defconfig
-          
-          # 删除任何可能存在的其他设备配置行
           sed -i '/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/d' .config
-          
-          # 强制写入正确的设备
           echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y" >> .config
-          
-          # 再次运行 defconfig 以正确解析依赖
           make defconfig
-          
-          # 验证设备类型
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型被重置！"
             exit 1
           fi
-          
           echo "✅ 设备类型已锁定为 xiaomi_mi-router-ax3000t"
-          # 显示当前设备配置（加上 || true 防止 grep 非零退出导致失败）
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 编译前上传配置
@@ -132,6 +131,16 @@ jobs:
           git checkout e717d133ed6d
           echo "✅ 已锁定到 commit: $(git rev-parse --short HEAD)"
 
+      - name: 手动克隆 UA3F 源码到 package 目录
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/SunBK201/UA3F.git package/UA3F
+
+      - name: 手动克隆 quickstart 源码到 package 目录
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/animegasan/luci-app-quickstart.git package/quickstart
+
       - name: 复制配置文件
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
 
@@ -141,7 +150,7 @@ jobs:
           chmod +x diy.sh
           ./diy.sh
 
-      - name: 更新并下载 feeds
+      - name: 更新并下载 feeds（仅官方源）
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
