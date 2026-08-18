@@ -66,7 +66,8 @@ jobs:
       - name: 再次复制配置文件（确保 .config 不被覆盖）
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
 
-      - name: 强制锁定设备类型为 xiaomi_mi-router-ax3000t
+      # ========== 🔒 第一次锁定：defconfig 后强制写入 ==========
+      - name: 强制锁定设备类型为 xiaomi_mi-router-ax3000t（第一次锁定）
         working-directory: ImmortalWrt
         run: |
           make defconfig
@@ -77,7 +78,22 @@ jobs:
             echo "❌ 错误：设备类型被重置！"
             exit 1
           fi
-          echo "✅ 设备类型已锁定为 xiaomi_mi-router-ax3000t"
+          echo "✅ 第一次锁定：设备类型已锁定为 xiaomi_mi-router-ax3000t"
+          grep "CONFIG_TARGET_DEVICE" .config || true
+
+      # ========== 🔒 第二次锁定：编译前最后强制覆盖 ==========
+      - name: 编译前最后强制锁定设备类型（第二次锁定）
+        working-directory: ImmortalWrt
+        run: |
+          echo "🔄 第二次锁定：编译前最后强制覆盖设备类型..."
+          sed -i '/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/d' .config
+          echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y" >> .config
+          make oldconfig
+          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
+            echo "❌ 错误：第二次锁定失败！"
+            exit 1
+          fi
+          echo "✅ 第二次锁定：设备类型最终确认为 xiaomi_mi-router-ax3000t"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 编译前上传配置
@@ -150,14 +166,14 @@ jobs:
           chmod +x diy.sh
           ./diy.sh
 
-      - name: 更新并下载 feeds（仅官方源）
+      - name: 更新并下载 feeds
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
       - name: 再次复制配置文件
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
 
-      - name: 强制锁定设备类型为 xiaomi_mi-router-ax3000t
+      - name: 强制锁定设备类型为 xiaomi_mi-router-ax3000t（第一次锁定）
         working-directory: ImmortalWrt
         run: |
           make defconfig
@@ -168,7 +184,21 @@ jobs:
             echo "❌ 错误：设备类型被重置！"
             exit 1
           fi
-          echo "✅ 设备类型已锁定为 xiaomi_mi-router-ax3000t"
+          echo "✅ 第一次锁定：设备类型已锁定为 xiaomi_mi-router-ax3000t"
+          grep "CONFIG_TARGET_DEVICE" .config || true
+
+      - name: 编译前最后强制锁定设备类型（第二次锁定）
+        working-directory: ImmortalWrt
+        run: |
+          echo "🔄 第二次锁定：编译前最后强制覆盖设备类型..."
+          sed -i '/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/d' .config
+          echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y" >> .config
+          make oldconfig
+          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
+            echo "❌ 错误：第二次锁定失败！"
+            exit 1
+          fi
+          echo "✅ 第二次锁定：设备类型最终确认为 xiaomi_mi-router-ax3000t"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 开启 SSH 服务
