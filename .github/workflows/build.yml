@@ -46,25 +46,7 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      - name: 拉取 quickstart 核心包（从 master-yun-yun/luci-app-istore）
-        working-directory: ImmortalWrt
-        run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/master-yun-yun/luci-app-istore.git temp_istore
-          cd temp_istore
-          git sparse-checkout set quickstart
-          cd ..
-          mv temp_istore/quickstart package/
-          rm -rf temp_istore
-
-      - name: 拉取 luci-app-quickstart 界面包（从 master-yun-yun/kwrt-packages-kiddin9）
-        working-directory: ImmortalWrt
-        run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/master-yun-yun/kwrt-packages-kiddin9.git temp_kiddin9
-          cd temp_kiddin9
-          git sparse-checkout set luci-app-quickstart
-          cd ..
-          mv temp_kiddin9/luci-app-quickstart package/
-          rm -rf temp_kiddin9
+      # ========== quickstart 已移除（刷机后通过 opkg 安装） ==========
 
       - name: 复制配置文件到 ImmortalWrt
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
@@ -167,26 +149,6 @@ jobs:
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
-
-      - name: 拉取 quickstart 核心包
-        working-directory: ImmortalWrt
-        run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/master-yun-yun/luci-app-istore.git temp_istore
-          cd temp_istore
-          git sparse-checkout set quickstart
-          cd ..
-          mv temp_istore/quickstart package/
-          rm -rf temp_istore
-
-      - name: 拉取 luci-app-quickstart 界面包
-        working-directory: ImmortalWrt
-        run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/master-yun-yun/kwrt-packages-kiddin9.git temp_kiddin9
-          cd temp_kiddin9
-          git sparse-checkout set luci-app-quickstart
-          cd ..
-          mv temp_kiddin9/luci-app-quickstart package/
-          rm -rf temp_kiddin9
 
       - name: 复制配置文件
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
