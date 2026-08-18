@@ -59,16 +59,29 @@ jobs:
       - name: 强制锁定设备类型为 xiaomi_mi-router-ax3000t
         working-directory: ImmortalWrt
         run: |
-          sed -i 's/^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_.*=y/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y/g' .config
+          # 先运行 defconfig 生成完整配置（包含平台默认）
           make defconfig
+          
+          # 删除任何可能存在的其他设备配置行
+          sed -i '/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/d' .config
+          
+          # 强制写入正确的设备
+          echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y" >> .config
+          
+          # 再次运行 defconfig 以正确解析依赖
+          make defconfig
+          
+          # 验证设备类型
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型被重置！"
             exit 1
           fi
+          
           echo "✅ 设备类型已锁定为 xiaomi_mi-router-ax3000t"
+          grep "CONFIG_TARGET_DEVICE" .config
 
       - name: 编译前上传配置
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: config-before-build
           path: |
@@ -86,7 +99,7 @@ jobs:
         run: make -j1 V=s
 
       - name: 上传编译结果
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ImmortalWrt_24.10.4_AX3000T
           path: ImmortalWrt/bin/targets
@@ -134,16 +147,19 @@ jobs:
       - name: 再次复制配置文件
         run: cp -f .config feeds.conf.default diy.sh ImmortalWrt/
 
-      - name: 强制锁定设备类型
+      - name: 强制锁定设备类型为 xiaomi_mi-router-ax3000t
         working-directory: ImmortalWrt
         run: |
-          sed -i 's/^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_.*=y/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y/g' .config
+          make defconfig
+          sed -i '/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/d' .config
+          echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y" >> .config
           make defconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型被重置！"
             exit 1
           fi
           echo "✅ 设备类型已锁定为 xiaomi_mi-router-ax3000t"
+          grep "CONFIG_TARGET_DEVICE" .config
 
       - name: 开启 SSH 服务
         uses: lhotari/action-upterm@v1
@@ -151,7 +167,7 @@ jobs:
           wait-timeout-minutes: 20
 
       - name: 编译前上传配置
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: config-before-build
           path: |
@@ -169,7 +185,7 @@ jobs:
         run: make -j1 V=s
 
       - name: 上传编译结果
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ImmortalWrt_24.10.4_AX3000T
           path: ImmortalWrt/bin/targets
