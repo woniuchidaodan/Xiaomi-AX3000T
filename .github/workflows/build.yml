@@ -45,12 +45,18 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      # ========== 新增：克隆 quickstart 源码（豆包方案）==========
-      - name: 手动克隆 quickstart 源码
+      # ========== 从 kenzok8 源稀疏检出 quickstart（核心 + 界面）==========
+      - name: 从 kenzok8 源拉取 quickstart
         working-directory: ImmortalWrt
         run: |
-          git clone https://github.com/wukongdaily/luci-app-quickstart.git package/luci-app-quickstart
-          echo "✅ quickstart 源码已克隆"
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
+          cd temp_kenzok8
+          git sparse-checkout set quickstart luci-app-quickstart
+          cd ..
+          mv temp_kenzok8/quickstart package/
+          mv temp_kenzok8/luci-app-quickstart package/
+          rm -rf temp_kenzok8
+          echo "✅ quickstart 核心包 + 界面包已拉取"
 
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
@@ -135,11 +141,17 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      - name: 手动克隆 quickstart 源码
+      - name: 从 kenzok8 源拉取 quickstart
         working-directory: ImmortalWrt
         run: |
-          git clone https://github.com/wukongdaily/luci-app-quickstart.git package/luci-app-quickstart
-          echo "✅ quickstart 源码已克隆"
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
+          cd temp_kenzok8
+          git sparse-checkout set quickstart luci-app-quickstart
+          cd ..
+          mv temp_kenzok8/quickstart package/
+          mv temp_kenzok8/luci-app-quickstart package/
+          rm -rf temp_kenzok8
+          echo "✅ quickstart 核心包 + 界面包已拉取"
 
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
