@@ -23,12 +23,5 @@ src/gz openwrt_packages https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/
 src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/routing
 EOF
 
-mkdir -p package/base-files/files/etc
-cat > package/base-files/files/etc/openwrt_release << 'EOF'
-DISTRIB_ID='ImmortalWrt'
-DISTRIB_RELEASE='24.10.4'
-DISTRIB_REVISION='r33602-e717d133ed6d'
-DISTRIB_TARGET='mediatek/filogic'
-DISTRIB_ARCH='aarch64_cortex-a53'
-DISTRIB_DESCRIPTION='ImmortalWrt 24.10.4 r33602-e717d133ed6d'
-EOF
+# ========== 已删除手动生成 openwrt_release 的代码 ==========
+# 版本信息将由编译系统通过 CONFIG_VERSION_NUMBER 自动生成
