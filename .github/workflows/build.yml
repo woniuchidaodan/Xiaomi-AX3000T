@@ -38,25 +38,20 @@ jobs:
         working-directory: ImmortalWrt
         run: |
           git checkout e717d133ed6d
-          echo "✅ 已锁定到 commit: $(git rev-parse --short HEAD)"
+          echo "✅ 当前源码 commit: $(git rev-parse --verify HEAD)"
 
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      # ========== 从 kenzok8 源稀疏检出 quickstart（核心 + 界面）==========
-      - name: 从 kenzok8 源拉取 quickstart
+      # ========== 使用 wukongdaily 原版 quickstart ==========
+      - name: 拉取原版 quickstart 核心 + LuCI 界面
         working-directory: ImmortalWrt
         run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
-          cd temp_kenzok8
-          git sparse-checkout set quickstart luci-app-quickstart
-          cd ..
-          mv temp_kenzok8/quickstart package/
-          mv temp_kenzok8/luci-app-quickstart package/
-          rm -rf temp_kenzok8
-          echo "✅ quickstart 核心包 + 界面包已拉取"
+          git clone https://github.com/wukongdaily/quickstart.git package/quickstart
+          git clone https://github.com/wukongdaily/luci-app-quickstart.git package/luci-app-quickstart
+          echo "✅ quickstart 完整拉取完成"
 
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
@@ -66,6 +61,14 @@ jobs:
         run: |
           chmod +x diy.sh
           ./diy.sh
+
+      # ========== 🔧 方案 B 核心：注入 24.10.4 版本参数 ==========
+      - name: 注入 24.10.4 版本参数（方案 B）
+        working-directory: ImmortalWrt
+        run: |
+          echo "CONFIG_VERSION_NUMBER=\"24.10.4\"" >> .config
+          echo "CONFIG_VERSION_CODE=\"r33602-e717d133ed6d\"" >> .config
+          echo "✅ 已注入 24.10.4 版本参数"
 
       - name: 更新并下载 feeds
         working-directory: ImmortalWrt
@@ -82,8 +85,16 @@ jobs:
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
           fi
-          echo "✅ 配置已加载：AX3000T 完整配置 + 自定义软件包"
-          grep "CONFIG_TARGET_DEVICE" .config || true
+          echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
+
+      # ========== 编译前再次确认版本参数（防止被覆盖）==========
+      - name: 编译前最终确认版本参数
+        working-directory: ImmortalWrt
+        run: |
+          echo "CONFIG_VERSION_NUMBER=\"24.10.4\"" >> .config
+          echo "CONFIG_VERSION_CODE=\"r33602-e717d133ed6d\"" >> .config
+          make oldconfig
+          echo "✅ 版本参数已最终确认"
 
       - name: 编译前上传配置
         uses: actions/upload-artifact@v6
@@ -134,24 +145,19 @@ jobs:
         working-directory: ImmortalWrt
         run: |
           git checkout e717d133ed6d
-          echo "✅ 已锁定到 commit: $(git rev-parse --short HEAD)"
+          echo "✅ 当前源码 commit: $(git rev-parse --verify HEAD)"
 
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      - name: 从 kenzok8 源拉取 quickstart
+      - name: 拉取原版 quickstart 核心 + LuCI 界面
         working-directory: ImmortalWrt
         run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
-          cd temp_kenzok8
-          git sparse-checkout set quickstart luci-app-quickstart
-          cd ..
-          mv temp_kenzok8/quickstart package/
-          mv temp_kenzok8/luci-app-quickstart package/
-          rm -rf temp_kenzok8
-          echo "✅ quickstart 核心包 + 界面包已拉取"
+          git clone https://github.com/wukongdaily/quickstart.git package/quickstart
+          git clone https://github.com/wukongdaily/luci-app-quickstart.git package/luci-app-quickstart
+          echo "✅ quickstart 完整拉取完成"
 
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
@@ -161,6 +167,13 @@ jobs:
         run: |
           chmod +x diy.sh
           ./diy.sh
+
+      - name: 注入 24.10.4 版本参数（方案 B）
+        working-directory: ImmortalWrt
+        run: |
+          echo "CONFIG_VERSION_NUMBER=\"24.10.4\"" >> .config
+          echo "CONFIG_VERSION_CODE=\"r33602-e717d133ed6d\"" >> .config
+          echo "✅ 已注入 24.10.4 版本参数"
 
       - name: 更新并下载 feeds
         working-directory: ImmortalWrt
@@ -177,8 +190,15 @@ jobs:
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
           fi
-          echo "✅ 配置已加载：AX3000T 完整配置 + 自定义软件包"
-          grep "CONFIG_TARGET_DEVICE" .config || true
+          echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
+
+      - name: 编译前最终确认版本参数
+        working-directory: ImmortalWrt
+        run: |
+          echo "CONFIG_VERSION_NUMBER=\"24.10.4\"" >> .config
+          echo "CONFIG_VERSION_CODE=\"r33602-e717d133ed6d\"" >> .config
+          make oldconfig
+          echo "✅ 版本参数已最终确认"
 
       - name: 开启 SSH 服务
         uses: lhotari/action-upterm@v1
