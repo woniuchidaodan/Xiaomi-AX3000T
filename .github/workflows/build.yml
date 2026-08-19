@@ -58,7 +58,6 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 方案2：加载本地预生成的完整 AX3000T 配置 ==========
       - name: 加载 AX3000T 完整配置
         working-directory: ImmortalWrt
         run: |
