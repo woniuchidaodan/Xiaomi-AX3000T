@@ -45,7 +45,6 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      # ========== 从 kenzok8 源稀疏检出 quickstart ==========
       - name: 从 kenzok8 源拉取 quickstart
         working-directory: ImmortalWrt
         run: |
@@ -83,6 +82,14 @@ jobs:
             exit 1
           fi
           echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
+
+      # ========== 🔧 方案 B 核心：注入 24.10.4 版本参数 ==========
+      - name: 注入 24.10.4 编译版本元数据
+        working-directory: ImmortalWrt
+        run: |
+          echo 'CONFIG_VERSION_NUMBER="24.10.4"' >> .config
+          echo 'CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/releases/24.10.4"' >> .config
+          yes "" | make oldconfig
 
       - name: 编译前上传配置
         uses: actions/upload-artifact@v6
@@ -177,6 +184,13 @@ jobs:
             exit 1
           fi
           echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
+
+      - name: 注入 24.10.4 编译版本元数据
+        working-directory: ImmortalWrt
+        run: |
+          echo 'CONFIG_VERSION_NUMBER="24.10.4"' >> .config
+          echo 'CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/releases/24.10.4"' >> .config
+          yes "" | make oldconfig
 
       - name: 开启 SSH 服务
         uses: lhotari/action-upterm@v1
