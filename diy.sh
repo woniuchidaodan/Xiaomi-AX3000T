@@ -23,5 +23,5 @@ src/gz openwrt_packages https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/
 src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/routing
 EOF
 
-# ========== 已删除 cat > /etc/openwrt_release ==========
+# ========== 已删除伪造 /etc/openwrt_release ==========
 # 版本标识由编译系统通过 CONFIG_VERSION_NUMBER 原生生成
