@@ -45,20 +45,22 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      # ========== 从 kenzok8 源稀疏检出 quickstart + 相关依赖 ==========
-      - name: 从 kenzok8 源拉取 quickstart 及其依赖
+      # ========== 从 kenzok8 源补全 quickstart 全部依赖链 ==========
+      - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
         run: |
           git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
           cd temp_kenzok8
-          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd
+          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
           cd ..
           mv temp_kenzok8/quickstart package/
           mv temp_kenzok8/luci-app-quickstart package/
           mv temp_kenzok8/luci-app-store package/
           mv temp_kenzok8/luci-lib-taskd package/
+          mv temp_kenzok8/luci-lib-xterm package/
+          mv temp_kenzok8/taskd package/
           rm -rf temp_kenzok8
-          echo "✅ quickstart + luci-app-store + luci-lib-taskd 已拉取"
+          echo "✅ quickstart 全部依赖链已拉取"
 
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
@@ -150,19 +152,21 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      - name: 从 kenzok8 源拉取 quickstart 及其依赖
+      - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
         run: |
           git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
           cd temp_kenzok8
-          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd
+          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
           cd ..
           mv temp_kenzok8/quickstart package/
           mv temp_kenzok8/luci-app-quickstart package/
           mv temp_kenzok8/luci-app-store package/
           mv temp_kenzok8/luci-lib-taskd package/
+          mv temp_kenzok8/luci-lib-xterm package/
+          mv temp_kenzok8/taskd package/
           rm -rf temp_kenzok8
-          echo "✅ quickstart + luci-app-store + luci-lib-taskd 已拉取"
+          echo "✅ quickstart 全部依赖链已拉取"
 
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
