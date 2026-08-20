@@ -24,4 +24,4 @@ src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/r
 EOF
 
 # ========== 已删除伪造 /etc/openwrt_release ==========
-# 版本标识由编译系统通过 CONFIG_VERSION_NUMBER 原生生成
+# v24.10.4 Tag 编译会原生生成 24.10.4，无需伪造
