@@ -26,19 +26,25 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 克隆 ImmortalWrt 官方仓库（openwrt-24.10 分支）
+      # ========== 核心改动：直接使用 Tag，不是分支 ==========
+      - name: 克隆 ImmortalWrt 官方仓库（v24.10.4 正式 Tag）
         uses: actions/checkout@v5
         with:
           repository: 'immortalwrt/immortalwrt'
-          ref: 'openwrt-24.10'
+          ref: 'v24.10.4'                # ✅ 直接指定 Tag
           path: ImmortalWrt
-          fetch-depth: 0
+          fetch-depth: 0                  # ✅ 必须 0，拉取完整标签信息
 
-      - name: 切换到 24.10.4 commit（e717d133ed6d）
+      # ========== 校验 git 状态 ==========
+      - name: 校验 git 版本标签
         working-directory: ImmortalWrt
         run: |
-          git checkout e717d133ed6d
-          echo "✅ 当前源码 commit: $(git rev-parse --verify HEAD)"
+          echo "==== git describe ===="
+          git describe
+          echo "==== git status ===="
+          git status
+          echo "==== 当前 commit ===="
+          git log -1 --oneline
 
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
@@ -75,21 +81,20 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 加载配置：cat 完整追加 seed.config（含版本配置） ==========
+      # ========== 加载配置：使用 defconfig 适配 Tag 基线 ==========
       - name: 加载 AX3000T 完整配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
           cp ax3000t.config .config
-          # 直接追加整个 seed.config（包含版本配置和软件包）
-          cat seed.config >> .config
-          yes "" | make oldconfig 2>/dev/null || true
+          grep '^CONFIG_PACKAGE_' seed.config >> .config
+          make defconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
           fi
-          echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
-          grep CONFIG_VERSION_ .config || true
+          echo "✅ 配置已加载：AX3000T‑ubootmod"
+          grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 编译前上传配置
         uses: actions/upload-artifact@v6
@@ -108,6 +113,17 @@ jobs:
         if: ${{inputs.multithreading == false}}
         working-directory: ImmortalWrt
         run: make -j1 V=s
+
+      # ========== 编译后版本校验 ==========
+      - name: 编译后版本校验
+        working-directory: ImmortalWrt
+        run: |
+          echo "==== git describe ===="
+          git describe
+          echo "==== profiles.json version ===="
+          cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
+          echo "==== openwrt_release ===="
+          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
 
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
@@ -128,19 +144,23 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 克隆 ImmortalWrt 官方仓库（openwrt-24.10 分支）
+      - name: 克隆 ImmortalWrt 官方仓库（v24.10.4 正式 Tag）
         uses: actions/checkout@v5
         with:
           repository: 'immortalwrt/immortalwrt'
-          ref: 'openwrt-24.10'
+          ref: 'v24.10.4'
           path: ImmortalWrt
           fetch-depth: 0
 
-      - name: 切换到 24.10.4 commit（e717d133ed6d）
+      - name: 校验 git 版本标签
         working-directory: ImmortalWrt
         run: |
-          git checkout e717d133ed6d
-          echo "✅ 当前源码 commit: $(git rev-parse --verify HEAD)"
+          echo "==== git describe ===="
+          git describe
+          echo "==== git status ===="
+          git status
+          echo "==== 当前 commit ===="
+          git log -1 --oneline
 
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
@@ -181,14 +201,14 @@ jobs:
         run: |
           rm -f .config
           cp ax3000t.config .config
-          cat seed.config >> .config
-          yes "" | make oldconfig 2>/dev/null || true
+          grep '^CONFIG_PACKAGE_' seed.config >> .config
+          make defconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
           fi
-          echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
-          grep CONFIG_VERSION_ .config || true
+          echo "✅ 配置已加载：AX3000T‑ubootmod"
+          grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 开启 SSH 服务
         uses: lhotari/action-upterm@v1
@@ -212,6 +232,16 @@ jobs:
         if: ${{inputs.multithreading == false}}
         working-directory: ImmortalWrt
         run: make -j1 V=s
+
+      - name: 编译后版本校验
+        working-directory: ImmortalWrt
+        run: |
+          echo "==== git describe ===="
+          git describe
+          echo "==== profiles.json version ===="
+          cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
+          echo "==== openwrt_release ===="
+          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
 
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
