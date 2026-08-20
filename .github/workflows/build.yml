@@ -89,10 +89,11 @@ jobs:
           echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
 
       # ========== 🔧 方案 B 核心：注入版本参数 ==========
-      - name: 注入 24.10.4 编译版本元数据
+      - name: 注入 24.10.4 完整版本标识
         working-directory: ImmortalWrt
         run: |
           echo 'CONFIG_VERSION_NUMBER="24.10.4"' >> .config
+          echo 'CONFIG_VERSION_CODE="r33602-e717d133ed6d"' >> .config
           echo 'CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/releases/24.10.4"' >> .config
           yes "" | make oldconfig
 
@@ -194,10 +195,11 @@ jobs:
           fi
           echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
 
-      - name: 注入 24.10.4 编译版本元数据
+      - name: 注入 24.10.4 完整版本标识
         working-directory: ImmortalWrt
         run: |
           echo 'CONFIG_VERSION_NUMBER="24.10.4"' >> .config
+          echo 'CONFIG_VERSION_CODE="r33602-e717d133ed6d"' >> .config
           echo 'CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/releases/24.10.4"' >> .config
           yes "" | make oldconfig
 
