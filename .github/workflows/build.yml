@@ -45,17 +45,19 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      - name: 从 kenzok8 源拉取 quickstart
+      # ========== 从 kenzok8 源稀疏检出 quickstart + luci-app-store ==========
+      - name: 从 kenzok8 源拉取 quickstart 和 luci-app-store
         working-directory: ImmortalWrt
         run: |
           git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
           cd temp_kenzok8
-          git sparse-checkout set quickstart luci-app-quickstart
+          git sparse-checkout set quickstart luci-app-quickstart luci-app-store
           cd ..
           mv temp_kenzok8/quickstart package/
           mv temp_kenzok8/luci-app-quickstart package/
+          mv temp_kenzok8/luci-app-store package/
           rm -rf temp_kenzok8
-          echo "✅ quickstart 核心包 + 界面包已拉取"
+          echo "✅ quickstart + luci-app-store 已拉取"
 
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
@@ -83,7 +85,7 @@ jobs:
           fi
           echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
 
-      # ========== 🔧 方案 B 核心：注入 24.10.4 版本参数 ==========
+      # ========== 注入 24.10.4 原生版本标识 ==========
       - name: 注入 24.10.4 编译版本元数据
         working-directory: ImmortalWrt
         run: |
@@ -147,17 +149,18 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      - name: 从 kenzok8 源拉取 quickstart
+      - name: 从 kenzok8 源拉取 quickstart 和 luci-app-store
         working-directory: ImmortalWrt
         run: |
           git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
           cd temp_kenzok8
-          git sparse-checkout set quickstart luci-app-quickstart
+          git sparse-checkout set quickstart luci-app-quickstart luci-app-store
           cd ..
           mv temp_kenzok8/quickstart package/
           mv temp_kenzok8/luci-app-quickstart package/
+          mv temp_kenzok8/luci-app-store package/
           rm -rf temp_kenzok8
-          echo "✅ quickstart 核心包 + 界面包已拉取"
+          echo "✅ quickstart + luci-app-store 已拉取"
 
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
