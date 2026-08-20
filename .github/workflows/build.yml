@@ -75,31 +75,21 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
+      # ========== 加载配置：cat 完整追加 seed.config（含版本配置） ==========
       - name: 加载 AX3000T 完整配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
           cp ax3000t.config .config
-          grep '^CONFIG_PACKAGE_' seed.config >> .config
+          # 直接追加整个 seed.config（包含版本配置和软件包）
+          cat seed.config >> .config
           yes "" | make oldconfig 2>/dev/null || true
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
           fi
           echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
-
-      # ========== 🔧 方案 B 最终修复：使用 scripts/config 官方工具 ==========
-      - name: 注入 24.10.4 完整版本标识（使用 scripts/config 官方工具）
-        working-directory: ImmortalWrt
-        run: |
-          # 使用 OpenWrt 自带工具设置字符串配置，替代 echo >> .config
-          ./scripts/config --set-str CONFIG_VERSION_NUMBER "24.10.4"
-          ./scripts/config --set-str CONFIG_VERSION_CODE "r33602-e717d133ed6d"
-          ./scripts/config --set-str CONFIG_VERSION_REPO "https://downloads.immortalwrt.org/releases/24.10.4"
-          # 同步配置，silentoldconfig 无交互，不会清理已设置好的 VERSION 字符串
-          make silentoldconfig
-          # 打印校验，日志中可直接查看是否写入成功
-          grep CONFIG_VERSION_ .config
+          grep CONFIG_VERSION_ .config || true
 
       - name: 编译前上传配置
         uses: actions/upload-artifact@v6
@@ -191,22 +181,14 @@ jobs:
         run: |
           rm -f .config
           cp ax3000t.config .config
-          grep '^CONFIG_PACKAGE_' seed.config >> .config
+          cat seed.config >> .config
           yes "" | make oldconfig 2>/dev/null || true
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
           fi
           echo "✅ 配置已加载：AX3000T‑ubootmod + 24.10.4 软件包集合"
-
-      - name: 注入 24.10.4 完整版本标识（使用 scripts/config 官方工具）
-        working-directory: ImmortalWrt
-        run: |
-          ./scripts/config --set-str CONFIG_VERSION_NUMBER "24.10.4"
-          ./scripts/config --set-str CONFIG_VERSION_CODE "r33602-e717d133ed6d"
-          ./scripts/config --set-str CONFIG_VERSION_REPO "https://downloads.immortalwrt.org/releases/24.10.4"
-          make silentoldconfig
-          grep CONFIG_VERSION_ .config
+          grep CONFIG_VERSION_ .config || true
 
       - name: 开启 SSH 服务
         uses: lhotari/action-upterm@v1
