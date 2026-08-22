@@ -81,14 +81,16 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 加载配置：使用 defconfig 适配 Tag 基线 ==========
+      # ========== 加载配置：使用 oldconfig 保护全局配置 ==========
       - name: 加载 AX3000T 完整配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
           cp ax3000t.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
-          make defconfig
+          
+          # ----- 使用 oldconfig 替代 defconfig，保护全局配置 -----
+          yes "" | make oldconfig
           
           # ----- 强制移除不需要的 shadow 套件 -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
@@ -216,7 +218,9 @@ jobs:
           rm -f .config
           cp ax3000t.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
-          make defconfig
+          
+          # ----- 使用 oldconfig 替代 defconfig，保护全局配置 -----
+          yes "" | make oldconfig
           
           # ----- 强制移除不需要的 shadow 套件 -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
