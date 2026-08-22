@@ -82,7 +82,7 @@ jobs:
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
       # ========== 加载配置：使用 oldconfig 保护全局配置 ==========
-      # 关键修复：同时关闭 CONFIG_SHADOW_PASSWORDS 和 CONFIG_PACKAGE_shadow-utils
+      # 只关闭 CONFIG_SHADOW_PASSWORDS，不碰 shadow-utils 和 smartmontools
       - name: 加载 AX3000T 完整配置
         working-directory: ImmortalWrt
         run: |
@@ -90,20 +90,16 @@ jobs:
           cp ax3000t.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
           
-          # ----- 第一次强制关闭 shadow（让 oldconfig 认为这是已确定的选项） -----
+          # ----- 仅关闭 CONFIG_SHADOW_PASSWORDS（不影响 shadow-utils 包编译） -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-          sed -i '/CONFIG_PACKAGE_shadow-utils/d' .config
-          echo "# CONFIG_PACKAGE_shadow-utils is not set" >> .config
           
-          # ----- 使用 oldconfig 替代 defconfig，保护全局配置 -----
+          # ----- 使用 oldconfig 保护全局配置 -----
           yes "" | make oldconfig
           
-          # ----- 第二次强制关闭 shadow（防止被 oldconfig 或依赖链重置） -----
+          # ----- 再次确认 CONFIG_SHADOW_PASSWORDS 保持关闭 -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-          sed -i '/CONFIG_PACKAGE_shadow-utils/d' .config
-          echo "# CONFIG_PACKAGE_shadow-utils is not set" >> .config
           
           # ----- 设备校验 -----
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
@@ -220,20 +216,16 @@ jobs:
           cp ax3000t.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
           
-          # ----- 第一次强制关闭 shadow（让 oldconfig 认为这是已确定的选项） -----
+          # ----- 仅关闭 CONFIG_SHADOW_PASSWORDS（不影响 shadow-utils 包编译） -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-          sed -i '/CONFIG_PACKAGE_shadow-utils/d' .config
-          echo "# CONFIG_PACKAGE_shadow-utils is not set" >> .config
           
-          # ----- 使用 oldconfig 替代 defconfig，保护全局配置 -----
+          # ----- 使用 oldconfig 保护全局配置 -----
           yes "" | make oldconfig
           
-          # ----- 第二次强制关闭 shadow（防止被 oldconfig 或依赖链重置） -----
+          # ----- 再次确认 CONFIG_SHADOW_PASSWORDS 保持关闭 -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-          sed -i '/CONFIG_PACKAGE_shadow-utils/d' .config
-          echo "# CONFIG_PACKAGE_shadow-utils is not set" >> .config
           
           # ----- 设备校验 -----
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
