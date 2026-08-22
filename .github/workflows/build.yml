@@ -89,6 +89,20 @@ jobs:
           cp ax3000t.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
           make defconfig
+          
+          # ----- 强制移除不需要的 shadow 套件 -----
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+          
+          # ----- 强制移除不需要的 smartmontools -----
+          sed -i '/CONFIG_PACKAGE_smartmontools/d' .config
+          echo "# CONFIG_PACKAGE_smartmontools is not set" >> .config
+          sed -i '/CONFIG_PACKAGE_smartd/d' .config
+          echo "# CONFIG_PACKAGE_smartd is not set" >> .config
+          sed -i '/CONFIG_PACKAGE_smartmontools-drivedb/d' .config
+          echo "# CONFIG_PACKAGE_smartmontools-drivedb is not set" >> .config
+          
+          # ----- 设备校验 -----
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
@@ -203,6 +217,20 @@ jobs:
           cp ax3000t.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
           make defconfig
+          
+          # ----- 强制移除不需要的 shadow 套件 -----
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+          
+          # ----- 强制移除不需要的 smartmontools -----
+          sed -i '/CONFIG_PACKAGE_smartmontools/d' .config
+          echo "# CONFIG_PACKAGE_smartmontools is not set" >> .config
+          sed -i '/CONFIG_PACKAGE_smartd/d' .config
+          echo "# CONFIG_PACKAGE_smartd is not set" >> .config
+          sed -i '/CONFIG_PACKAGE_smartmontools-drivedb/d' .config
+          echo "# CONFIG_PACKAGE_smartmontools-drivedb is not set" >> .config
+          
+          # ----- 设备校验 -----
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
