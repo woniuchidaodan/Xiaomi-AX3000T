@@ -27,11 +27,11 @@ EOF
 # ========== 吉林大学镜像站（已注释，按需启用）==========
 # mkdir -p package/base-files/files/etc/opkg
 # cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
-# src/gz openwrt_base http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.4/packages/aarch64_cortex-a53/base
-# src/gz openwrt_luci http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.4/packages/aarch64_cortex-a53/luci
-# src/gz openwrt_packages http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.4/packages/aarch64_cortex-a53/packages
-# src/gz openwrt_routing http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.4/packages/aarch64_cortex-a53/routing
-# src/gz openwrt_telephony http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.4/packages/aarch64_cortex-a53/telephony
+# src/gz openwrt_base http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/base
+# src/gz openwrt_luci http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/luci
+# src/gz openwrt_packages http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/packages
+# src/gz openwrt_routing http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/routing
+# src/gz openwrt_telephony http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/telephony
 # EOF
 
 
