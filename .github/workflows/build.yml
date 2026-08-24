@@ -27,11 +27,11 @@ jobs:
         uses: actions/checkout@v5
 
       # ========== 核心改动：直接使用 Tag，不是分支 ==========
-      - name: 克隆 ImmortalWrt 官方仓库（v24.10.4 正式 Tag）
+      - name: 克隆 ImmortalWrt 官方仓库
         uses: actions/checkout@v5
         with:
           repository: 'immortalwrt/immortalwrt'
-          ref: 'v24.10.4'
+          ref: 'v24.10.6'
           path: ImmortalWrt
           fetch-depth: 0
 
@@ -157,11 +157,11 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 克隆 ImmortalWrt 官方仓库（v24.10.4 正式 Tag）
+      - name: 克隆 ImmortalWrt 官方仓库
         uses: actions/checkout@v5
         with:
           repository: 'immortalwrt/immortalwrt'
-          ref: 'v24.10.4'
+          ref: 'v24.10.6'
           path: ImmortalWrt
           fetch-depth: 0
 
