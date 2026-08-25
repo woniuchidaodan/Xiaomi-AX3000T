@@ -1,4 +1,40 @@
 #!/bin/bash
+set -e  # 遇到错误立即退出，避免掩耳盗铃
+
+# ==========================================
+# 1. 拉取外部源码（UA3F + quickstart 全套）
+# ==========================================
+
+echo "----------------------------------------"
+echo "正在拉取 UA3F 源码..."
+if [ -d "package/UA3F" ]; then
+    echo "UA3F 目录已存在，跳过克隆"
+else
+    git clone https://github.com/SunBK201/UA3F.git package/UA3F
+fi
+
+echo "----------------------------------------"
+echo "正在从 kenzok8 源拉取 quickstart 及其全部依赖..."
+if [ -d "package/quickstart" ]; then
+    echo "quickstart 目录已存在，跳过拉取"
+else
+    git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
+    cd temp_kenzok8
+    git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
+    cd ..
+    mv temp_kenzok8/quickstart package/
+    mv temp_kenzok8/luci-app-quickstart package/
+    mv temp_kenzok8/luci-app-store package/
+    mv temp_kenzok8/luci-lib-taskd package/
+    mv temp_kenzok8/luci-lib-xterm package/
+    mv temp_kenzok8/taskd package/
+    rm -rf temp_kenzok8
+    echo "✅ quickstart 全部依赖链已拉取"
+fi
+
+# ==========================================
+# 2. 原 diy.sh 的定制内容（完全保留）
+# ==========================================
 
 sed -i 's/192.168.1.1/192.168.5.1/g' package/base-files/files/bin/config_generate
 sed -i 's/ImmortalWrt/AX3000T/g' package/base-files/files/bin/config_generate
@@ -33,8 +69,6 @@ EOF
 # src/gz openwrt_routing http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/routing
 # src/gz openwrt_telephony http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/telephony
 # EOF
-
-
 
 # ========== 设置默认 WiFi 名称和密码（双频合一）==========
 mkdir -p package/base-files/files/etc/config
@@ -73,3 +107,5 @@ config wifi-iface 'default_radio1'
 EOF
 
 # ========== 已删除伪造 /etc/openwrt_release ==========
+
+echo "✅ diy.sh 所有定制任务执行完毕！"
