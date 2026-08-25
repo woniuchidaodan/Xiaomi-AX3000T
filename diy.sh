@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e  # 遇到错误立即退出，避免掩耳盗铃
+set -e
 
 # ==========================================
 # 1. 拉取外部源码（UA3F + quickstart 全套）
@@ -33,12 +33,13 @@ else
 fi
 
 # ==========================================
-# 2. 原 diy.sh 的定制内容（完全保留）
+# 2. 基础定制（IP、主机名、主题、源）
 # ==========================================
 
 sed -i 's/192.168.1.1/192.168.5.1/g' package/base-files/files/bin/config_generate
 sed -i 's/ImmortalWrt/AX3000T/g' package/base-files/files/bin/config_generate
 
+# 设置默认 Argon 主题
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-set-argon-theme << 'EOT'
 if [ -d "/www/luci-static/argon" ]; then
@@ -49,7 +50,7 @@ exit 0
 EOT
 chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
 
-# ========== distfeeds.conf（默认：dl.openwrt.ai 第三方源）==========
+# 自定义 distfeeds.conf（使用 dl.openwrt.ai）
 mkdir -p package/base-files/files/etc/opkg
 cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
 src/gz openwrt_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
@@ -60,52 +61,32 @@ src/gz openwrt_packages https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/
 src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/routing
 EOF
 
-# ========== 吉林大学镜像站（已注释，按需启用）==========
-# mkdir -p package/base-files/files/etc/opkg
-# cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
-# src/gz openwrt_base http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/base
-# src/gz openwrt_luci http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/luci
-# src/gz openwrt_packages http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/packages
-# src/gz openwrt_routing http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/routing
-# src/gz openwrt_telephony http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/telephony
-# EOF
+# ==========================================
+# 3. 通用 WiFi 配置（自动适配任何设备）
+# ==========================================
 
-# ========== 设置默认 WiFi 名称和密码（双频合一）==========
-mkdir -p package/base-files/files/etc/config
-cat > package/base-files/files/etc/config/wireless << 'EOF'
-config wifi-device 'radio0'
-    option type 'mac80211'
-    option path 'platform/soc/18000000.wifi'
-    option channel '1'
-    option band '2g'
-    option htmode 'HE20'
-    option disabled '0'
+mkdir -p package/base-files/files/etc/uci-defaults
+cat > package/base-files/files/etc/uci-defaults/98-set-wifi-unified << 'EOT'
+#!/bin/sh
+# 等待无线配置生成（首次启动时 OpenWrt 会自动执行 wifi detect）
+sleep 2
 
-config wifi-iface 'default_radio0'
-    option device 'radio0'
-    option network 'lan'
-    option mode 'ap'
-    option ssid 'CMCC-6526'
-    option encryption 'psk2'
-    option key 'Cy1128724'
+if uci show wireless >/dev/null 2>&1; then
+    # 获取所有 wifi-iface 的名称并统一设置 SSID 和密码
+    for iface in $(uci show wireless | grep '=wifi-iface' | cut -d'=' -f1 | cut -d'.' -f2); do
+        uci set wireless.${iface}.ssid='CMCC-6526'
+        uci set wireless.${iface}.key='Cy1128724'
+        uci set wireless.${iface}.encryption='psk2'
+    done
+    uci commit wireless
+    wifi reload 2>/dev/null || true
+fi
+exit 0
+EOT
+chmod +x package/base-files/files/etc/uci-defaults/98-set-wifi-unified
 
-config wifi-device 'radio1'
-    option type 'mac80211'
-    option path 'platform/soc/18000000.wifi+1'
-    option channel '36'
-    option band '5g'
-    option htmode 'HE80'
-    option disabled '0'
-
-config wifi-iface 'default_radio1'
-    option device 'radio1'
-    option network 'lan'
-    option mode 'ap'
-    option ssid 'CMCC-6526'
-    option encryption 'psk2'
-    option key 'Cy1128724'
-EOF
-
-# ========== 已删除伪造 /etc/openwrt_release ==========
+# ==========================================
+# 4. 已删除伪造 /etc/openwrt_release（由 Tag 自动生成）
+# ==========================================
 
 echo "✅ diy.sh 所有定制任务执行完毕！"
