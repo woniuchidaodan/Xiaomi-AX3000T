@@ -1,4 +1,4 @@
-name: 🚀 编译 (Build) - ImmortalWrt 24.10.6 (通用设备)
+name: 🚀 编译 (Build) - ImmortalWrt(通用设备)
 
 on:
   workflow_dispatch:
