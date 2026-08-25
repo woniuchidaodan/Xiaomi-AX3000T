@@ -15,6 +15,11 @@ on:
         description: '使用 files 大法'
         type: boolean
         default: false
+      device_config:
+        description: '设备配置文件名称（例如 ax3000t.config，请从下方列出的可用文件中选取）'
+        type: string
+        required: true
+        # 无默认值，必须手动输入
 
 jobs:
   build:
@@ -60,7 +65,6 @@ jobs:
       - name: After freeing
         run: df -hT && df -i
 
-      # ========== 修复 APT 并安装依赖 ==========
       - name: 修复 APT 并安装编译依赖
         run: |
           echo "========== 彻底清理 APT =========="
@@ -90,9 +94,25 @@ jobs:
           sudo apt clean
           sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
-      # ========== 克隆仓库 ==========
       - name: 克隆当前仓库
         uses: actions/checkout@v5
+
+      - name: 列出所有可用的设备配置文件
+        run: |
+          echo "========== 仓库中可用的 .config 文件 =========="
+          find . -maxdepth 1 -name "*.config" -printf "%f\n" | sort || echo "未找到任何 .config 文件"
+          echo "================================================"
+          echo "请在上方列表中选择一个文件名，填入 'device_config' 输入框。"
+
+      - name: 检查用户指定的配置文件是否存在
+        run: |
+          if [ ! -f "${{ inputs.device_config }}" ]; then
+            echo "❌ 错误：找不到配置文件 '${{ inputs.device_config }}'。"
+            echo "可用的 .config 文件如下："
+            find . -maxdepth 1 -name "*.config" -printf "%f\n" | sort || echo "(无)"
+            exit 1
+          fi
+          echo "✅ 找到配置文件：${{ inputs.device_config }}"
 
       - name: 克隆 ImmortalWrt 官方仓库
         uses: actions/checkout@v5
@@ -107,7 +127,8 @@ jobs:
         run: git describe
 
       - name: 复制配置文件
-        run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
+        run: |
+          cp -f feeds.conf.default diy.sh seed.config "${{ inputs.device_config }}" ImmortalWrt/
 
       - name: 复制 files 目录
         if: ${{ inputs.isFiles == true }}
@@ -133,7 +154,7 @@ jobs:
         working-directory: ImmortalWrt
         run: |
           rm -f .config
-          cp ax3000t.config .config
+          cp "${{ inputs.device_config }}" .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
 
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
@@ -250,8 +271,25 @@ jobs:
           sudo apt clean
           sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
-      - name: 克隆仓库
+      - name: 克隆当前仓库
         uses: actions/checkout@v5
+
+      - name: 列出所有可用的设备配置文件
+        run: |
+          echo "========== 仓库中可用的 .config 文件 =========="
+          find . -maxdepth 1 -name "*.config" -printf "%f\n" | sort || echo "未找到任何 .config 文件"
+          echo "================================================"
+          echo "请在上方列表中选择一个文件名，填入 'device_config' 输入框。"
+
+      - name: 检查用户指定的配置文件是否存在
+        run: |
+          if [ ! -f "${{ inputs.device_config }}" ]; then
+            echo "❌ 错误：找不到配置文件 '${{ inputs.device_config }}'。"
+            echo "可用的 .config 文件如下："
+            find . -maxdepth 1 -name "*.config" -printf "%f\n" | sort || echo "(无)"
+            exit 1
+          fi
+          echo "✅ 找到配置文件：${{ inputs.device_config }}"
 
       - name: 克隆 ImmortalWrt
         uses: actions/checkout@v5
@@ -266,7 +304,8 @@ jobs:
         run: git describe
 
       - name: 复制配置文件
-        run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
+        run: |
+          cp -f feeds.conf.default diy.sh seed.config "${{ inputs.device_config }}" ImmortalWrt/
 
       - name: 复制 files 目录
         if: ${{ inputs.isFiles == true }}
@@ -292,7 +331,7 @@ jobs:
         working-directory: ImmortalWrt
         run: |
           rm -f .config
-          cp ax3000t.config .config
+          cp "${{ inputs.device_config }}" .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
