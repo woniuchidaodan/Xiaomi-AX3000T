@@ -1,4 +1,4 @@
-name: 🚀 编译 (Build) - ImmortalWrt 24.10.4 for AX3000T
+name: 🚀 编译 (Build) - ImmortalWrt for AX3000T
 
 on:
   workflow_dispatch:
