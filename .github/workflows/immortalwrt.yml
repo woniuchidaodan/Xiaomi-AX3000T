@@ -1,4 +1,4 @@
-name: 🚀 编译 (Build) - ImmortalWrt for AX3000T
+name: 🚀 编译 (Build) - ImmortalWrt (通用设备)
 
 on:
   workflow_dispatch:
@@ -28,6 +28,7 @@ jobs:
           echo "Before freeing up disk space"
           echo "=============================================================================="
           df -hT
+          df -i
           echo "=============================================================================="
 
       - name: "Optimize Disk Space"
@@ -54,8 +55,8 @@ jobs:
       - name: Freeing up disk space
         uses: easimon/maximize-build-space@master
         with:
-          root-reserve-mb: 4096   # 预留更多空间
-          swap-size-mb: 2048      # 适当增大 swap
+          root-reserve-mb: 6144
+          swap-size-mb: 2048
           remove-dotnet: "true"
           remove-android: "true"
           remove-haskell: "true"
@@ -67,32 +68,31 @@ jobs:
           echo "Free up disk space complete"
           echo "=============================================================================="
           df -hT
+          df -i
           echo "=============================================================================="
 
-      # ========== 安装编译依赖（含强制清理） ==========
-      - name: 清理磁盘并安装编译依赖
+      # ========== 清理 APT 缓存并安装依赖 ==========
+      - name: 清理 APT 缓存并安装编译依赖
         run: |
-          # 1. 彻底清理 apt 缓存和列表，释放 /var/lib/apt/lists/ 空间
+          echo "========== 清理 APT 缓存 =========="
           sudo apt clean
           sudo rm -rf /var/lib/apt/lists/*
           sudo rm -rf /var/cache/apt/*
-          # 清理临时文件
           sudo rm -rf /tmp/*
           sudo rm -rf /var/tmp/*
           sudo docker system prune -af --volumes || true
-
-          # 2. 打印当前磁盘状态（调试）
-          echo "===== 磁盘空间 (安装依赖前) ====="
+          
+          echo "========== 磁盘空间（清理后） =========="
           df -hT
           df -i
-
-          # 3. 更新包列表
+          
+          echo "========== 更新软件包列表 =========="
           sudo apt update
-
-          # 4. 安装依赖
+          
+          echo "========== 安装编译依赖 =========="
           sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
-
-          # 5. 安装后再次清理（减少后续占用）
+          
+          echo "========== 安装完成后再次清理 =========="
           sudo apt clean
           sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
@@ -100,7 +100,7 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      # ========== 克隆 ImmortalWrt 官方仓库（固定 tag v24.10.6） ==========
+      # ========== 克隆 ImmortalWrt 官方仓库 ==========
       - name: 克隆 ImmortalWrt 官方仓库
         uses: actions/checkout@v5
         with:
@@ -124,7 +124,7 @@ jobs:
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
 
-      # ========== 如果启用 files 大法，则复制 files 目录 ==========
+      # ========== files 大法 ==========
       - name: 复制 files 目录到固件（files 大法）
         if: ${{ inputs.isFiles == true }}
         run: |
@@ -135,7 +135,7 @@ jobs:
             echo "⚠️ files 目录不存在，跳过"
           fi
 
-      # ========== 运行 diy.sh（包含 UA3F + quickstart 拉取及所有定制） ==========
+      # ========== 运行 diy.sh ==========
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
         run: |
@@ -147,8 +147,8 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 加载 AX3000T 完整配置 ==========
-      - name: 加载 AX3000T 完整配置
+      # ========== 加载设备配置（通用校验） ==========
+      - name: 加载设备配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
@@ -166,15 +166,24 @@ jobs:
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
-          # ----- 设备校验（若换设备请删除或修改此行） -----
-          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 错误：设备类型未正确选中！"
+          # ====== 通用设备校验（只要 .config 中选中了任意 Target 即可） ======
+          if ! grep -q "^CONFIG_TARGET_.*=y" .config; then
+            echo "❌ 错误：未在 .config 中选中任何目标设备！"
+            echo "请检查 ax3000t.config 或替换为其他设备的配置文件。"
             exit 1
           fi
-          echo "✅ 配置已加载：AX3000T‑ubootmod"
-          grep "CONFIG_TARGET_DEVICE" .config || true
+          echo "✅ 已检测到目标设备配置："
+          grep "^CONFIG_TARGET_.*=y" .config || true
 
-      # ========== 编译前上传配置（方便调试） ==========
+      # ========== 编译前检查磁盘 ==========
+      - name: 编译前检查磁盘
+        working-directory: ImmortalWrt
+        run: |
+          echo "========== 编译前磁盘状态 =========="
+          df -hT
+          df -i
+
+      # ========== 编译前上传配置 ==========
       - name: 编译前上传配置
         uses: actions/upload-artifact@v6
         with:
@@ -210,7 +219,7 @@ jobs:
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_24.10.6_AX3000T
+          name: ImmortalWrt_24.10.6_$(date +%Y%m%d)
           path: ImmortalWrt/bin/targets
 
   # ========== SSH 调试 Job ==========
@@ -225,6 +234,7 @@ jobs:
           echo "Before freeing up disk space"
           echo "=============================================================================="
           df -hT
+          df -i
           echo "=============================================================================="
 
       - name: "Optimize Disk Space"
@@ -251,7 +261,7 @@ jobs:
       - name: Freeing up disk space
         uses: easimon/maximize-build-space@master
         with:
-          root-reserve-mb: 4096
+          root-reserve-mb: 6144
           swap-size-mb: 2048
           remove-dotnet: "true"
           remove-android: "true"
@@ -264,24 +274,31 @@ jobs:
           echo "Free up disk space complete"
           echo "=============================================================================="
           df -hT
+          df -i
           echo "=============================================================================="
 
-      # ---- 安装依赖 ----
-      - name: 清理磁盘并安装编译依赖
+      # ---- 清理 APT 缓存并安装依赖 ----
+      - name: 清理 APT 缓存并安装编译依赖
         run: |
+          echo "========== 清理 APT 缓存 =========="
           sudo apt clean
           sudo rm -rf /var/lib/apt/lists/*
           sudo rm -rf /var/cache/apt/*
           sudo rm -rf /tmp/*
           sudo rm -rf /var/tmp/*
           sudo docker system prune -af --volumes || true
-
-          echo "===== 磁盘空间 (安装依赖前) ====="
+          
+          echo "========== 磁盘空间（清理后） =========="
           df -hT
           df -i
-
+          
+          echo "========== 更新软件包列表 =========="
           sudo apt update
+          
+          echo "========== 安装编译依赖 =========="
           sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
+          
+          echo "========== 安装完成后再次清理 =========="
           sudo apt clean
           sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
@@ -334,8 +351,8 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ---- 加载配置 ----
-      - name: 加载 AX3000T 完整配置
+      # ---- 加载配置（通用校验） ----
+      - name: 加载设备配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
@@ -350,14 +367,23 @@ jobs:
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
-          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 错误：设备类型未正确选中！"
+          if ! grep -q "^CONFIG_TARGET_.*=y" .config; then
+            echo "❌ 错误：未在 .config 中选中任何目标设备！"
+            echo "请检查 ax3000t.config 或替换为其他设备的配置文件。"
             exit 1
           fi
-          echo "✅ 配置已加载：AX3000T‑ubootmod"
-          grep "CONFIG_TARGET_DEVICE" .config || true
+          echo "✅ 已检测到目标设备配置："
+          grep "^CONFIG_TARGET_.*=y" .config || true
 
-      # ---- 开启 SSH（tmate） ----
+      # ---- 编译前检查磁盘 ----
+      - name: 编译前检查磁盘
+        working-directory: ImmortalWrt
+        run: |
+          echo "========== 编译前磁盘状态 =========="
+          df -hT
+          df -i
+
+      # ---- 开启 SSH ----
       - name: 开启 SSH 服务（tmate）
         uses: mxschmitt/action-tmate@v3
         with:
@@ -398,5 +424,5 @@ jobs:
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_24.10.6_AX3000T
+          name: ImmortalWrt_24.10.6_$(date +%Y%m%d)
           path: ImmortalWrt/bin/targets
