@@ -73,4 +73,3 @@ config wifi-iface 'default_radio1'
 EOF
 
 # ========== 已删除伪造 /etc/openwrt_release ==========
-# v24.10.4 Tag 编译会原生生成 24.10.4，无需伪造
