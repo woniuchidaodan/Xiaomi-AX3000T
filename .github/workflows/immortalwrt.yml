@@ -54,8 +54,8 @@ jobs:
       - name: Freeing up disk space
         uses: easimon/maximize-build-space@master
         with:
-          root-reserve-mb: 3072
-          swap-size-mb: 1
+          root-reserve-mb: 4096   # 预留更多空间
+          swap-size-mb: 2048      # 适当增大 swap
           remove-dotnet: "true"
           remove-android: "true"
           remove-haskell: "true"
@@ -69,11 +69,32 @@ jobs:
           df -hT
           echo "=============================================================================="
 
-      # ========== 安装编译依赖 ==========
-      - name: 下载编译所需的依赖
+      # ========== 安装编译依赖（含强制清理） ==========
+      - name: 清理磁盘并安装编译依赖
         run: |
+          # 1. 彻底清理 apt 缓存和列表，释放 /var/lib/apt/lists/ 空间
+          sudo apt clean
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /var/cache/apt/*
+          # 清理临时文件
+          sudo rm -rf /tmp/*
+          sudo rm -rf /var/tmp/*
+          sudo docker system prune -af --volumes || true
+
+          # 2. 打印当前磁盘状态（调试）
+          echo "===== 磁盘空间 (安装依赖前) ====="
+          df -hT
+          df -i
+
+          # 3. 更新包列表
           sudo apt update
+
+          # 4. 安装依赖
           sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
+
+          # 5. 安装后再次清理（减少后续占用）
+          sudo apt clean
+          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
       # ========== 克隆当前仓库 ==========
       - name: 克隆当前仓库
@@ -145,7 +166,7 @@ jobs:
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
-          # ----- 设备校验 -----
+          # ----- 设备校验（若换设备请删除或修改此行） -----
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
@@ -230,8 +251,8 @@ jobs:
       - name: Freeing up disk space
         uses: easimon/maximize-build-space@master
         with:
-          root-reserve-mb: 3072
-          swap-size-mb: 1
+          root-reserve-mb: 4096
+          swap-size-mb: 2048
           remove-dotnet: "true"
           remove-android: "true"
           remove-haskell: "true"
@@ -246,10 +267,23 @@ jobs:
           echo "=============================================================================="
 
       # ---- 安装依赖 ----
-      - name: 下载编译所需的依赖
+      - name: 清理磁盘并安装编译依赖
         run: |
+          sudo apt clean
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /var/cache/apt/*
+          sudo rm -rf /tmp/*
+          sudo rm -rf /var/tmp/*
+          sudo docker system prune -af --volumes || true
+
+          echo "===== 磁盘空间 (安装依赖前) ====="
+          df -hT
+          df -i
+
           sudo apt update
           sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
+          sudo apt clean
+          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
       # ---- 克隆 ----
       - name: 克隆当前仓库
