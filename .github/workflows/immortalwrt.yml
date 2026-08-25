@@ -1,4 +1,4 @@
-name: 🚀 编译 (Build) - ImmortalWrt (通用设备)
+name: 🚀 编译 (Build) - ImmortalWrt 24.10.6 (通用设备)
 
 on:
   workflow_dispatch:
@@ -16,10 +16,16 @@ on:
         type: boolean
         default: false
       device_config:
-        description: '设备配置文件名称（例如 ax3000t.config，请从下方列出的可用文件中选取）'
-        type: string
+        description: '选择设备配置文件'
+        type: choice
+        options:
+          - ax3000t.config
+          - redmi_ax6000.config
+          - gl-mt3000.config
+          - x86_64.config
+          - bananapi-r3.config
         required: true
-        # 无默认值，必须手动输入
+        default: ax3000t.config
 
 jobs:
   build:
@@ -97,19 +103,26 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 列出所有可用的设备配置文件
+      - name: 设置构建日期（用于 Artifact 名称）
+        run: echo "BUILD_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
+
+      - name: 提取设备名称（去除 .config 后缀）
+        run: |
+          DEVICE=$(echo "${{ inputs.device_config }}" | sed 's/\.config$//')
+          echo "DEVICE_NAME=$DEVICE" >> $GITHUB_ENV
+          echo "设备名称：$DEVICE"
+
+      - name: 列出所有可用的设备配置文件（仅供参考）
         run: |
           echo "========== 仓库中可用的 .config 文件 =========="
           find . -maxdepth 1 -name "*.config" -printf "%f\n" | sort || echo "未找到任何 .config 文件"
           echo "================================================"
-          echo "请在上方列表中选择一个文件名，填入 'device_config' 输入框。"
 
-      - name: 检查用户指定的配置文件是否存在
+      - name: 检查用户选择的配置文件是否存在
         run: |
           if [ ! -f "${{ inputs.device_config }}" ]; then
             echo "❌ 错误：找不到配置文件 '${{ inputs.device_config }}'。"
-            echo "可用的 .config 文件如下："
-            find . -maxdepth 1 -name "*.config" -printf "%f\n" | sort || echo "(无)"
+            echo "请确保该文件存在于仓库根目录。"
             exit 1
           fi
           echo "✅ 找到配置文件：${{ inputs.device_config }}"
@@ -204,7 +217,7 @@ jobs:
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_24.10.6_$(date +%Y%m%d)
+          name: ImmortalWrt_24.10.6_${{ env.BUILD_DATE }}_${{ env.DEVICE_NAME }}
           path: ImmortalWrt/bin/targets
 
   # ========== SSH 调试 Job ==========
@@ -274,19 +287,26 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 列出所有可用的设备配置文件
+      - name: 设置构建日期（用于 Artifact 名称）
+        run: echo "BUILD_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
+
+      - name: 提取设备名称（去除 .config 后缀）
+        run: |
+          DEVICE=$(echo "${{ inputs.device_config }}" | sed 's/\.config$//')
+          echo "DEVICE_NAME=$DEVICE" >> $GITHUB_ENV
+          echo "设备名称：$DEVICE"
+
+      - name: 列出所有可用的设备配置文件（仅供参考）
         run: |
           echo "========== 仓库中可用的 .config 文件 =========="
           find . -maxdepth 1 -name "*.config" -printf "%f\n" | sort || echo "未找到任何 .config 文件"
           echo "================================================"
-          echo "请在上方列表中选择一个文件名，填入 'device_config' 输入框。"
 
-      - name: 检查用户指定的配置文件是否存在
+      - name: 检查用户选择的配置文件是否存在
         run: |
           if [ ! -f "${{ inputs.device_config }}" ]; then
             echo "❌ 错误：找不到配置文件 '${{ inputs.device_config }}'。"
-            echo "可用的 .config 文件如下："
-            find . -maxdepth 1 -name "*.config" -printf "%f\n" | sort || echo "(无)"
+            echo "请确保该文件存在于仓库根目录。"
             exit 1
           fi
           echo "✅ 找到配置文件：${{ inputs.device_config }}"
@@ -382,5 +402,5 @@ jobs:
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_24.10.6_$(date +%Y%m%d)
+          name: ImmortalWrt_24.10.6_${{ env.BUILD_DATE }}_${{ env.DEVICE_NAME }}
           path: ImmortalWrt/bin/targets
