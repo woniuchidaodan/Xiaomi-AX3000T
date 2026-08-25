@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       multithreading:
-        description: '开启多线程编译 (Enable multithreading build)'
+        description: '开启多线程编译'
         type: boolean
         default: true
       ssh:
-        description: '使用 ssh 连接到编译环境 (Connect to the build environment using ssh)'
+        description: '使用 ssh 连接到编译环境'
         type: boolean
         default: false
       isFiles:
-        description: '使用 files 大法 (Upload /files directory to OpenWRT root)'
+        description: '使用 files 大法'
         type: boolean
         default: false
 
@@ -20,19 +20,13 @@ jobs:
   build:
     if: ${{ inputs.ssh == false }}
     runs-on: ubuntu-22.04
-    name: 🚀 编译 (Build)
+    name: 🚀 编译
     steps:
-      # ========== 磁盘空间优化 ==========
-      - name: Before freeing up disk space
-        run: |
-          echo "Before freeing up disk space"
-          echo "=============================================================================="
-          df -hT
-          df -i
-          echo "=============================================================================="
+      - name: Before freeing disk
+        run: df -hT && df -i
 
-      - name: "Optimize Disk Space"
-        uses: "hugoalh/disk-space-optimizer-ghaction@v0.8.1"
+      - name: Optimize Disk Space
+        uses: hugoalh/disk-space-optimizer-ghaction@v0.8.1
         with:
           operate_sudo: "True"
           general_include: ".+"
@@ -63,44 +57,43 @@ jobs:
           remove-codeql: "true"
           remove-docker-images: "true"
 
-      - name: Free up disk space complete
-        run: |
-          echo "Free up disk space complete"
-          echo "=============================================================================="
-          df -hT
-          df -i
-          echo "=============================================================================="
+      - name: After freeing
+        run: df -hT && df -i
 
-      # ========== 清理 APT 缓存并安装依赖 ==========
-      - name: 清理 APT 缓存并安装编译依赖
+      # ========== 修复 APT 并安装依赖 ==========
+      - name: 修复 APT 并安装编译依赖
         run: |
-          echo "========== 清理 APT 缓存 =========="
+          echo "========== 彻底清理 APT =========="
           sudo apt clean
           sudo rm -rf /var/lib/apt/lists/*
           sudo rm -rf /var/cache/apt/*
           sudo rm -rf /tmp/*
           sudo rm -rf /var/tmp/*
           sudo docker system prune -af --volumes || true
-          
-          echo "========== 磁盘空间（清理后） =========="
-          df -hT
-          df -i
-          
+
+          echo "========== 修复 dpkg 状态 =========="
+          sudo dpkg --configure -a
+          sudo apt --fix-broken install -y
+
           echo "========== 更新软件包列表 =========="
           sudo apt update
-          
+
           echo "========== 安装编译依赖 =========="
-          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
-          
-          echo "========== 安装完成后再次清理 =========="
+          sudo apt install -y --no-install-recommends \
+            build-essential ccache ecj fastjar file g++ gawk gettext git \
+            libelf-dev libncurses5-dev libncursesw5-dev libssl-dev \
+            python3 python3-distutils python3-setuptools python3-pyelftools \
+            rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev \
+            || { echo "首次安装失败，尝试修复并重试..."; sudo apt --fix-broken install -y; sudo apt install -y --no-install-recommends build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev; }
+
+          echo "========== 安装完成后清理 =========="
           sudo apt clean
           sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
-      # ========== 克隆当前仓库 ==========
+      # ========== 克隆仓库 ==========
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      # ========== 克隆 ImmortalWrt 官方仓库 ==========
       - name: 克隆 ImmortalWrt 官方仓库
         uses: actions/checkout@v5
         with:
@@ -109,23 +102,14 @@ jobs:
           path: ImmortalWrt
           fetch-depth: 0
 
-      # ========== 校验 git 版本标签 ==========
-      - name: 校验 git 版本标签
+      - name: 校验 git 标签
         working-directory: ImmortalWrt
-        run: |
-          echo "==== git describe ===="
-          git describe
-          echo "==== git status ===="
-          git status
-          echo "==== 当前 commit ===="
-          git log -1 --oneline
+        run: git describe
 
-      # ========== 复制自定义配置文件 ==========
-      - name: 复制自定义配置文件
+      - name: 复制配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
 
-      # ========== files 大法 ==========
-      - name: 复制 files 目录到固件（files 大法）
+      - name: 复制 files 目录
         if: ${{ inputs.isFiles == true }}
         run: |
           if [ -d "files" ]; then
@@ -135,56 +119,43 @@ jobs:
             echo "⚠️ files 目录不存在，跳过"
           fi
 
-      # ========== 运行 diy.sh ==========
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
         run: |
           chmod +x diy.sh
           ./diy.sh
 
-      # ========== 更新并下载 feeds ==========
-      - name: 更新并下载 feeds
+      - name: 更新 feeds
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 加载设备配置（通用校验） ==========
-      - name: 加载设备配置
+      - name: 加载设备配置（通用校验）
         working-directory: ImmortalWrt
         run: |
           rm -f .config
           cp ax3000t.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
 
-          # ----- 仅关闭 CONFIG_SHADOW_PASSWORDS -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
-          # ----- 使用 oldconfig 保护全局配置 -----
           yes "" | make oldconfig
 
-          # ----- 再次确认 CONFIG_SHADOW_PASSWORDS 保持关闭 -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
-          # ====== 通用设备校验（只要 .config 中选中了任意 Target 即可） ======
           if ! grep -q "^CONFIG_TARGET_.*=y" .config; then
-            echo "❌ 错误：未在 .config 中选中任何目标设备！"
-            echo "请检查 ax3000t.config 或替换为其他设备的配置文件。"
+            echo "❌ 未选中任何目标设备"
             exit 1
           fi
-          echo "✅ 已检测到目标设备配置："
+          echo "✅ 目标设备："
           grep "^CONFIG_TARGET_.*=y" .config || true
 
-      # ========== 编译前检查磁盘 ==========
-      - name: 编译前检查磁盘
+      - name: 编译前磁盘检查
         working-directory: ImmortalWrt
-        run: |
-          echo "========== 编译前磁盘状态 =========="
-          df -hT
-          df -i
+        run: df -hT && df -i
 
-      # ========== 编译前上传配置 ==========
-      - name: 编译前上传配置
+      - name: 上传编译前配置
         uses: actions/upload-artifact@v6
         with:
           name: config-before-build
@@ -192,30 +163,23 @@ jobs:
             ImmortalWrt/feeds.conf.default
             ImmortalWrt/.config
 
-      # ========== 多线程编译 ==========
       - name: 多线程编译
         if: ${{ inputs.multithreading == true }}
         working-directory: ImmortalWrt
         run: make -j$(nproc) V=s
 
-      # ========== 单线程编译 ==========
       - name: 单线程编译
         if: ${{ inputs.multithreading == false }}
         working-directory: ImmortalWrt
         run: make -j1 V=s
 
-      # ========== 编译后版本校验 ==========
-      - name: 编译后版本校验
+      - name: 编译后校验
         working-directory: ImmortalWrt
         run: |
-          echo "==== git describe ===="
           git describe
-          echo "==== profiles.json version ===="
           cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
-          echo "==== openwrt_release ===="
           cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
 
-      # ========== 上传编译结果 ==========
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
@@ -225,20 +189,14 @@ jobs:
   # ========== SSH 调试 Job ==========
   build-ssh:
     if: ${{ inputs.ssh == true }}
-    name: 🚀 编译 (Build) - SSH
     runs-on: ubuntu-22.04
+    name: 🚀 编译 (SSH)
     steps:
-      # ---- 磁盘优化 ----
-      - name: Before freeing up disk space
-        run: |
-          echo "Before freeing up disk space"
-          echo "=============================================================================="
-          df -hT
-          df -i
-          echo "=============================================================================="
+      - name: Before freeing disk
+        run: df -hT && df -i
 
-      - name: "Optimize Disk Space"
-        uses: "hugoalh/disk-space-optimizer-ghaction@v0.8.1"
+      - name: Optimize Disk Space
+        uses: hugoalh/disk-space-optimizer-ghaction@v0.8.1
         with:
           operate_sudo: "True"
           general_include: ".+"
@@ -269,44 +227,33 @@ jobs:
           remove-codeql: "true"
           remove-docker-images: "true"
 
-      - name: Free up disk space complete
-        run: |
-          echo "Free up disk space complete"
-          echo "=============================================================================="
-          df -hT
-          df -i
-          echo "=============================================================================="
+      - name: After freeing
+        run: df -hT && df -i
 
-      # ---- 清理 APT 缓存并安装依赖 ----
-      - name: 清理 APT 缓存并安装编译依赖
+      - name: 修复 APT 并安装编译依赖
         run: |
-          echo "========== 清理 APT 缓存 =========="
           sudo apt clean
           sudo rm -rf /var/lib/apt/lists/*
           sudo rm -rf /var/cache/apt/*
           sudo rm -rf /tmp/*
           sudo rm -rf /var/tmp/*
           sudo docker system prune -af --volumes || true
-          
-          echo "========== 磁盘空间（清理后） =========="
-          df -hT
-          df -i
-          
-          echo "========== 更新软件包列表 =========="
+          sudo dpkg --configure -a
+          sudo apt --fix-broken install -y
           sudo apt update
-          
-          echo "========== 安装编译依赖 =========="
-          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
-          
-          echo "========== 安装完成后再次清理 =========="
+          sudo apt install -y --no-install-recommends \
+            build-essential ccache ecj fastjar file g++ gawk gettext git \
+            libelf-dev libncurses5-dev libncursesw5-dev libssl-dev \
+            python3 python3-distutils python3-setuptools python3-pyelftools \
+            rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev \
+            || { sudo apt --fix-broken install -y; sudo apt install -y --no-install-recommends build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev; }
           sudo apt clean
           sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
-      # ---- 克隆 ----
-      - name: 克隆当前仓库
+      - name: 克隆仓库
         uses: actions/checkout@v5
 
-      - name: 克隆 ImmortalWrt 官方仓库
+      - name: 克隆 ImmortalWrt
         uses: actions/checkout@v5
         with:
           repository: 'immortalwrt/immortalwrt'
@@ -314,22 +261,14 @@ jobs:
           path: ImmortalWrt
           fetch-depth: 0
 
-      - name: 校验 git 版本标签
+      - name: 校验 git 标签
         working-directory: ImmortalWrt
-        run: |
-          echo "==== git describe ===="
-          git describe
-          echo "==== git status ===="
-          git status
-          echo "==== 当前 commit ===="
-          git log -1 --oneline
+        run: git describe
 
-      # ---- 复制配置文件 ----
-      - name: 复制自定义配置文件
+      - name: 复制配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
 
-      # ---- files 大法 ----
-      - name: 复制 files 目录到固件（files 大法）
+      - name: 复制 files 目录
         if: ${{ inputs.isFiles == true }}
         run: |
           if [ -d "files" ]; then
@@ -339,58 +278,44 @@ jobs:
             echo "⚠️ files 目录不存在，跳过"
           fi
 
-      # ---- 运行 diy.sh ----
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
         run: |
           chmod +x diy.sh
           ./diy.sh
 
-      # ---- 更新 feeds ----
-      - name: 更新并下载 feeds
+      - name: 更新 feeds
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ---- 加载配置（通用校验） ----
       - name: 加载设备配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
           cp ax3000t.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
-
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-
           yes "" | make oldconfig
-
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-
           if ! grep -q "^CONFIG_TARGET_.*=y" .config; then
-            echo "❌ 错误：未在 .config 中选中任何目标设备！"
-            echo "请检查 ax3000t.config 或替换为其他设备的配置文件。"
+            echo "❌ 未选中目标设备"
             exit 1
           fi
-          echo "✅ 已检测到目标设备配置："
+          echo "✅ 目标设备："
           grep "^CONFIG_TARGET_.*=y" .config || true
 
-      # ---- 编译前检查磁盘 ----
-      - name: 编译前检查磁盘
+      - name: 编译前磁盘检查
         working-directory: ImmortalWrt
-        run: |
-          echo "========== 编译前磁盘状态 =========="
-          df -hT
-          df -i
+        run: df -hT && df -i
 
-      # ---- 开启 SSH ----
-      - name: 开启 SSH 服务（tmate）
+      - name: 开启 SSH (tmate)
         uses: mxschmitt/action-tmate@v3
         with:
           limit-access-to-actor: true
 
-      # ---- 编译前上传配置 ----
-      - name: 编译前上传配置
+      - name: 上传编译前配置
         uses: actions/upload-artifact@v6
         with:
           name: config-before-build
@@ -398,7 +323,6 @@ jobs:
             ImmortalWrt/feeds.conf.default
             ImmortalWrt/.config
 
-      # ---- 编译 ----
       - name: 多线程编译
         if: ${{ inputs.multithreading == true }}
         working-directory: ImmortalWrt
@@ -409,18 +333,13 @@ jobs:
         working-directory: ImmortalWrt
         run: make -j1 V=s
 
-      # ---- 校验 ----
-      - name: 编译后版本校验
+      - name: 编译后校验
         working-directory: ImmortalWrt
         run: |
-          echo "==== git describe ===="
           git describe
-          echo "==== profiles.json version ===="
           cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
-          echo "==== openwrt_release ===="
           cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
 
-      # ---- 上传 ----
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
