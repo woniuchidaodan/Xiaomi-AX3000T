@@ -14,6 +14,14 @@ else
 fi
 
 echo "----------------------------------------"
+echo "正在拉取 rkp-ipid 源码..."
+if [ -d "package/rkp-ipid" ]; then
+    echo "rkp-ipid 目录已存在，跳过克隆"
+else
+    git clone https://github.com/EOYOHOO/rkp-ipid.git package/rkp-ipid
+fi
+
+echo "----------------------------------------"
 echo "正在从 kenzok8 源拉取 quickstart 及其全部依赖..."
 if [ -d "package/quickstart" ]; then
     echo "quickstart 目录已存在，跳过拉取"
