@@ -51,6 +51,12 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
+      # ========== 新增：克隆 OpenAppFilter (OAF) 源码 ==========
+      - name: 克隆 OpenAppFilter (OAF) 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
+
       # ========== 从 kenzok8 源补全 quickstart 全部依赖链 ==========
       - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
@@ -93,6 +99,9 @@ jobs:
           # ----- 仅关闭 CONFIG_SHADOW_PASSWORDS（不影响 shadow-utils 包编译） -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+          
+          # ----- 开启 OAF 编译选项 -----
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
           
           # ----- 使用 oldconfig 保护全局配置 -----
           yes "" | make oldconfig
@@ -180,6 +189,12 @@ jobs:
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
+      # ========== 新增：克隆 OpenAppFilter (OAF) 源码 ==========
+      - name: 克隆 OpenAppFilter (OAF) 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
+
       - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
         run: |
@@ -219,6 +234,9 @@ jobs:
           # ----- 仅关闭 CONFIG_SHADOW_PASSWORDS（不影响 shadow-utils 包编译） -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+          
+          # ----- 开启 OAF 编译选项 -----
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
           
           # ----- 使用 oldconfig 保护全局配置 -----
           yes "" | make oldconfig
