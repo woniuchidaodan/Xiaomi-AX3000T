@@ -77,13 +77,7 @@ jobs:
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
 
-      # ========== 🔧 新增：修改 feeds.conf.default 使用 immortalwrt/luci ==========
-      - name: 修改 LuCI 源为 immortalwrt/luci
-        working-directory: ImmortalWrt
-        run: |
-          sed -i 's|src-git luci .*|src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10|' feeds.conf.default
-          echo "✅ LuCI 源已切换至 immortalwrt/luci"
-          cat feeds.conf.default  # 可选，打印确认
+      # ========== 注意：feeds.conf.default 已默认指向 immortalwrt/luci，无需修改 ==========
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -222,13 +216,7 @@ jobs:
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
 
-      # ========== 🔧 新增：修改 feeds.conf.default 使用 immortalwrt/luci ==========
-      - name: 修改 LuCI 源为 immortalwrt/luci
-        working-directory: ImmortalWrt
-        run: |
-          sed -i 's|src-git luci .*|src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10|' feeds.conf.default
-          echo "✅ LuCI 源已切换至 immortalwrt/luci"
-          cat feeds.conf.default
+      # ========== 注意：feeds.conf.default 已默认指向 immortalwrt/luci，无需修改 ==========
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
