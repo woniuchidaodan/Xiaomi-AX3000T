@@ -138,12 +138,18 @@ jobs:
         working-directory: ImmortalWrt
         run: make -j1 V=s
 
-      # ========== 编译后版本校验 ==========
-      - name: 编译后版本校验
+      # ========== 编译后版本校验 & 提取版本号（从 git tag） ==========
+      - name: 编译后版本校验并提取版本信息
         working-directory: ImmortalWrt
         run: |
           echo "==== git describe ===="
-          git describe
+          FW_TAG=$(git describe --tags)
+          echo "FW_TAG=$FW_TAG"
+          # 去除前缀 'v' 得到版本号，例如 v24.10.6 -> 24.10.6
+          FW_VERSION=${FW_TAG#v}
+          echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
+          echo "✅ 提取版本号: $FW_VERSION"
+
           echo "==== profiles.json version ===="
           cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
           echo "==== openwrt_release ===="
@@ -152,7 +158,7 @@ jobs:
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_24.10.4_AX3000T
+          name: ImmortalWrt_${{ env.FW_VERSION }}_AX3000T
           path: ImmortalWrt/bin/targets
 
   build-ssh:
@@ -280,11 +286,17 @@ jobs:
         working-directory: ImmortalWrt
         run: make -j1 V=s
 
-      - name: 编译后版本校验
+      # ========== 编译后版本校验 & 提取版本号（从 git tag） ==========
+      - name: 编译后版本校验并提取版本信息
         working-directory: ImmortalWrt
         run: |
           echo "==== git describe ===="
-          git describe
+          FW_TAG=$(git describe --tags)
+          echo "FW_TAG=$FW_TAG"
+          FW_VERSION=${FW_TAG#v}
+          echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
+          echo "✅ 提取版本号: $FW_VERSION"
+
           echo "==== profiles.json version ===="
           cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
           echo "==== openwrt_release ===="
@@ -293,5 +305,5 @@ jobs:
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_24.10.4_AX3000T
+          name: ImmortalWrt_${{ env.FW_VERSION }}_AX3000T
           path: ImmortalWrt/bin/targets
