@@ -53,7 +53,7 @@ config wifi-iface 'default_radio0'
     option mode 'ap'
     option ssid 'CMCC-6526'
     option encryption 'psk2'
-    option key 'Cy1128724'
+    option key '123456789'
 
 config wifi-device 'radio1'
     option type 'mac80211'
@@ -69,7 +69,7 @@ config wifi-iface 'default_radio1'
     option mode 'ap'
     option ssid 'CMCC-6526'
     option encryption 'psk2'
-    option key 'Cy1128724'
+    option key '123456789'
 EOF
 
 # ========== 已删除伪造 /etc/openwrt_release ==========
