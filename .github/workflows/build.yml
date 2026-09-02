@@ -77,6 +77,23 @@ jobs:
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
 
+      # ========== 🆕 方案一：添加 kenzok8 的 small-package 源（包含 luci-app-turboacc-mtk） ==========
+      - name: 添加 kenzok8 的 small-package 源
+        working-directory: ImmortalWrt
+        run: |
+          echo 'src-git small https://github.com/kenzok8/small-package' >> feeds.conf.default
+          echo "✅ small-package 源已添加到 feeds.conf.default"
+
+      # ========== 🆕 方案一：在 seed.config 中启用 luci-app-turboacc-mtk ==========
+      - name: 启用 TurboACC MTK 配置
+        working-directory: ImmortalWrt
+        run: |
+          echo "CONFIG_PACKAGE_luci-app-turboacc-mtk=y" >> seed.config
+          echo "CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn=y" >> seed.config
+          # 可选：显式勾选依赖的内核模块（若需自动处理可省略）
+          echo "CONFIG_PACKAGE_kmod-shortcut-fe-drv=y" >> seed.config
+          echo "✅ TurboACC MTK 配置已追加到 seed.config"
+
       # ========== 注意：feeds.conf.default 已默认指向 immortalwrt/luci，无需修改 ==========
 
       - name: 运行 diy.sh
@@ -221,6 +238,22 @@ jobs:
 
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
+
+      # ========== 🆕 方案一：添加 kenzok8 的 small-package 源（包含 luci-app-turboacc-mtk） ==========
+      - name: 添加 kenzok8 的 small-package 源
+        working-directory: ImmortalWrt
+        run: |
+          echo 'src-git small https://github.com/kenzok8/small-package' >> feeds.conf.default
+          echo "✅ small-package 源已添加到 feeds.conf.default"
+
+      # ========== 🆕 方案一：在 seed.config 中启用 luci-app-turboacc-mtk ==========
+      - name: 启用 TurboACC MTK 配置
+        working-directory: ImmortalWrt
+        run: |
+          echo "CONFIG_PACKAGE_luci-app-turboacc-mtk=y" >> seed.config
+          echo "CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn=y" >> seed.config
+          echo "CONFIG_PACKAGE_kmod-shortcut-fe-drv=y" >> seed.config
+          echo "✅ TurboACC MTK 配置已追加到 seed.config"
 
       # ========== 注意：feeds.conf.default 已默认指向 immortalwrt/luci，无需修改 ==========
 
