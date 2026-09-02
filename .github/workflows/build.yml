@@ -1,4 +1,4 @@
-name: 🚀 编译 (Build) - ImmortalWrt for AX3000T (官方 + MTK TurboACC)
+name: 🚀 编译 (Build) - ImmortalWrt for AX3000T
 
 on:
   workflow_dispatch:
@@ -23,10 +23,10 @@ jobs:
           sudo apt update
           sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
 
-      - name: 克隆当前仓库（含自定义配置文件）
+      - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      # ========== 核心：克隆官方 ImmortalWrt 源码 ==========
+      # ========== 核心改动：直接使用 Tag，不是分支 ==========
       - name: 克隆 ImmortalWrt 官方仓库
         uses: actions/checkout@v5
         with:
@@ -46,33 +46,18 @@ jobs:
           echo "==== 当前 commit ===="
           git log -1 --oneline
 
-      # ========== 手动集成 MedyMa 的 MTK 软件包（含 luci-app-turboacc-mtk 及驱动） ==========
-      - name: 从 MedyMa 仓库复制 MTK 包目录
-        working-directory: ImmortalWrt
-        run: |
-          # 使用 sparse checkout 只下载 package/mtk 目录
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/MedyMa/immortalwrt-mt798x-6.6.git temp_mtk
-          cd temp_mtk
-          git sparse-checkout set package/mtk
-          cd ..
-          # 将整个 mtk 目录移动到 ImmortalWrt/package 下
-          mv temp_mtk/package/mtk package/
-          rm -rf temp_mtk
-          echo "✅ MTK 软件包（含 luci-app-turboacc-mtk）已成功复制到 package/mtk"
-
-      # ========== 手动添加 UA3F 源码 ==========
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      # ========== 手动添加 OpenAppFilter (OAF) 源码 ==========
+      # ========== 新增：克隆 OpenAppFilter (OAF) 源码 ==========
       - name: 克隆 OpenAppFilter (OAF) 源码
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
-      # ========== 从 kenzok8 源拉取 quickstart 及其全部依赖 ==========
+      # ========== 从 kenzok8 源补全 quickstart 全部依赖链 ==========
       - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
         run: |
@@ -89,23 +74,23 @@ jobs:
           rm -rf temp_kenzok8
           echo "✅ quickstart 全部依赖链已拉取"
 
-      # ========== 复制自定义配置文件 ==========
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
 
-      # ========== 运行 diy.sh（如有自定义调整） ==========
+      # ========== 注意：feeds.conf.default 已默认指向 immortalwrt/luci，无需修改 ==========
+
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
         run: |
           chmod +x diy.sh
           ./diy.sh
 
-      # ========== 更新并安装 feeds（包括官方 feeds） ==========
       - name: 更新并下载 feeds
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 加载配置：合并 ax3000t.config 和 seed.config ==========
+      # ========== 加载配置：使用 oldconfig 保护全局配置 ==========
+      # 只关闭 CONFIG_SHADOW_PASSWORDS，不碰 shadow-utils 和 smartmontools
       - name: 加载 AX3000T 完整配置
         working-directory: ImmortalWrt
         run: |
@@ -113,14 +98,17 @@ jobs:
           cp ax3000t.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
           
-          # ----- 关闭 CONFIG_SHADOW_PASSWORDS（避免冲突） -----
+          # ----- 仅关闭 CONFIG_SHADOW_PASSWORDS（不影响 shadow-utils 包编译） -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
           
-          # ----- 使用 oldconfig 处理依赖 -----
+          # ----- 开启 OAF 编译选项 -----
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          
+          # ----- 使用 oldconfig 保护全局配置 -----
           yes "" | make oldconfig
           
-          # ----- 再次确保 SHADOW_PASSWORDS 关闭 -----
+          # ----- 再次确认 CONFIG_SHADOW_PASSWORDS 保持关闭 -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
           
@@ -132,7 +120,7 @@ jobs:
           echo "✅ 配置已加载：AX3000T‑ubootmod"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
-      - name: 编译前上传配置（便于调试）
+      - name: 编译前上传配置
         uses: actions/upload-artifact@v6
         with:
           name: config-before-build
@@ -150,13 +138,14 @@ jobs:
         working-directory: ImmortalWrt
         run: make -j1 V=s
 
-      # ========== 提取版本号 ==========
+      # ========== 编译后版本校验 & 提取版本号（从 git tag） ==========
       - name: 编译后版本校验并提取版本信息
         working-directory: ImmortalWrt
         run: |
           echo "==== git describe ===="
           FW_TAG=$(git describe --tags)
           echo "FW_TAG=$FW_TAG"
+          # 去除前缀 'v' 得到版本号，例如 v24.10.6 -> 24.10.6
           FW_VERSION=${FW_TAG#v}
           echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
           echo "✅ 提取版本号: $FW_VERSION"
@@ -169,10 +158,9 @@ jobs:
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_${{ env.FW_VERSION }}_AX3000T_MTK
+          name: ImmortalWrt_${{ env.FW_VERSION }}_AX3000T
           path: ImmortalWrt/bin/targets
 
-  # ========== SSH 调试版本（与上述一致，增加 SSH） ==========
   build-ssh:
     if: ${{inputs.ssh == true}}
     name: 🚀 编译 (Build) - SSH
@@ -204,22 +192,12 @@ jobs:
           echo "==== 当前 commit ===="
           git log -1 --oneline
 
-      - name: 从 MedyMa 仓库复制 MTK 包目录
-        working-directory: ImmortalWrt
-        run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/MedyMa/immortalwrt-mt798x-6.6.git temp_mtk
-          cd temp_mtk
-          git sparse-checkout set package/mtk
-          cd ..
-          mv temp_mtk/package/mtk package/
-          rm -rf temp_mtk
-          echo "✅ MTK 软件包已复制"
-
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
+      # ========== 新增：克隆 OpenAppFilter (OAF) 源码 ==========
       - name: 克隆 OpenAppFilter (OAF) 源码
         working-directory: ImmortalWrt
         run: |
@@ -244,6 +222,8 @@ jobs:
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh seed.config ax3000t.config ImmortalWrt/
 
+      # ========== 注意：feeds.conf.default 已默认指向 immortalwrt/luci，无需修改 ==========
+
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
         run: |
@@ -261,14 +241,21 @@ jobs:
           cp ax3000t.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
           
+          # ----- 仅关闭 CONFIG_SHADOW_PASSWORDS（不影响 shadow-utils 包编译） -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
           
+          # ----- 开启 OAF 编译选项 -----
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          
+          # ----- 使用 oldconfig 保护全局配置 -----
           yes "" | make oldconfig
           
+          # ----- 再次确认 CONFIG_SHADOW_PASSWORDS 保持关闭 -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
           
+          # ----- 设备校验 -----
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
@@ -276,7 +263,7 @@ jobs:
           echo "✅ 配置已加载：AX3000T‑ubootmod"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
-      - name: 开启 SSH 服务（用于手动调试）
+      - name: 开启 SSH 服务
         uses: lhotari/action-upterm@v1
         with:
           wait-timeout-minutes: 20
@@ -299,6 +286,7 @@ jobs:
         working-directory: ImmortalWrt
         run: make -j1 V=s
 
+      # ========== 编译后版本校验 & 提取版本号（从 git tag） ==========
       - name: 编译后版本校验并提取版本信息
         working-directory: ImmortalWrt
         run: |
@@ -317,5 +305,5 @@ jobs:
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_${{ env.FW_VERSION }}_AX3000T_MTK
+          name: ImmortalWrt_${{ env.FW_VERSION }}_AX3000T
           path: ImmortalWrt/bin/targets
