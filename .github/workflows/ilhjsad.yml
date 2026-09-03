@@ -81,29 +81,20 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 核心：使用 defconfig 生成纯净配置 ==========
-      - name: 生成基础配置并设置设备
+      # ========== 使用 KCONFIG_ALLCONFIG 强制包含设备配置 ==========
+      - name: 生成配置并设置设备
         working-directory: ImmortalWrt
         run: |
-          # 1. 生成干净的基础配置（平台默认）
-          make defconfig
-
-          # 2. 启用 mediatek 平台和 filogic 子目标
-          sed -i 's/^# CONFIG_TARGET_mediatek is not set/CONFIG_TARGET_mediatek=y/' .config
-          sed -i 's/^# CONFIG_TARGET_mediatek_filogic is not set/CONFIG_TARGET_mediatek_filogic=y/' .config
-
-          # 3. 删除可能存在的设备选择行，然后追加 mtkuboot 设备
-          sed -i '/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t/d' .config
-          echo 'CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y' >> .config
-
-          # 4. 关闭 SHADOW_PASSWORDS（可选）
-          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
-          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-
-          # 5. 再次运行 defconfig 以合并所有设置并自动解决依赖
-          make defconfig
-
-          # 6. 设备校验
+          # 创建包含设备选择的最小配置文件
+          cat > mini.config << EOF
+          CONFIG_TARGET_mediatek=y
+          CONFIG_TARGET_mediatek_filogic=y
+          CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y
+          # CONFIG_SHADOW_PASSWORDS is not set
+          EOF
+          # 使用 KCONFIG_ALLCONFIG 运行 defconfig，强制包含上述设置
+          make KCONFIG_ALLCONFIG=mini.config defconfig
+          # 设备校验
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             echo "当前 .config 中的 TARGET_DEVICE 相关行："
@@ -217,17 +208,16 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      - name: 生成基础配置并设置设备
+      - name: 生成配置并设置设备
         working-directory: ImmortalWrt
         run: |
-          make defconfig
-          sed -i 's/^# CONFIG_TARGET_mediatek is not set/CONFIG_TARGET_mediatek=y/' .config
-          sed -i 's/^# CONFIG_TARGET_mediatek_filogic is not set/CONFIG_TARGET_mediatek_filogic=y/' .config
-          sed -i '/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t/d' .config
-          echo 'CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y' >> .config
-          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
-          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-          make defconfig
+          cat > mini.config << EOF
+          CONFIG_TARGET_mediatek=y
+          CONFIG_TARGET_mediatek_filogic=y
+          CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y
+          # CONFIG_SHADOW_PASSWORDS is not set
+          EOF
+          make KCONFIG_ALLCONFIG=mini.config defconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             grep "CONFIG_TARGET_DEVICE" .config || true
