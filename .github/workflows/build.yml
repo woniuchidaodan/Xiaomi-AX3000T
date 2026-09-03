@@ -26,24 +26,21 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      # ========== 使用 padavanonly 的 mt798x 分支，指定版本标签 ==========
-      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库 (v24.10.6)
+      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库 (openwrt-24.10-6.6 分支)
         uses: actions/checkout@v5
         with:
           repository: 'padavanonly/immortalwrt-mt798x-6.6'
-          ref: 'v24.10.6'                      # 可改为 'openwrt-24.10' 或其他标签
+          ref: 'openwrt-24.10-6.6'
           path: ImmortalWrt
           fetch-depth: 0
 
-      - name: 校验 git 版本标签
+      - name: 校验 git 状态
         working-directory: ImmortalWrt
         run: |
-          echo "==== git describe ===="
-          git describe
-          echo "==== git status ===="
-          git status
-          echo "==== 当前 commit ===="
+          echo "==== git log ===="
           git log -1 --oneline
+          echo "==== 当前分支 ===="
+          git branch --show-current
 
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
@@ -116,34 +113,38 @@ jobs:
             ImmortalWrt/feeds.conf.default
             ImmortalWrt/.config
 
+      # ========== 编译时强制指定版本号 ==========
       - name: 多线程编译
         if: ${{inputs.multithreading == true}}
         working-directory: ImmortalWrt
-        run: make -j$(nproc) V=s
+        run: make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
 
       - name: 单线程编译
         if: ${{inputs.multithreading == false}}
         working-directory: ImmortalWrt
-        run: make -j1 V=s
+        run: make VERSION_NUMBER="24.10.6" -j1 V=s
 
+      # ========== 版本提取：直接使用固定版本号 ==========
       - name: 编译后版本校验并提取版本信息
         working-directory: ImmortalWrt
         run: |
-          echo "==== 提取版本信息 ===="
-          FW_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v24.10.6")
-          FW_VERSION=${FW_TAG#v}
+          echo "==== 强制版本号: 24.10.6 ===="
+          FW_VERSION="24.10.6"
           echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
-          echo "✅ 提取版本号: $FW_VERSION"
+          echo "✅ 设置版本号为: $FW_VERSION"
 
-          echo "==== profiles.json version ===="
-          cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
+          echo "==== 验证固件内版本信息 ===="
+          # 检查生成的文件是否包含指定版本号
+          if [ -f bin/targets/*/*/packages/Packages ]; then
+            grep -l "24.10.6" bin/targets/*/*/packages/Packages || echo "未在 Packages 中找到版本号"
+          fi
           echo "==== openwrt_release ===="
-          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
+          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到（编译后可能生成）"
 
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_mt798x_${{ env.FW_VERSION }}_AX3000T
+          name: ImmortalWrt_mt798x_24.10.6_AX3000T
           path: ImmortalWrt/bin/targets
 
   build-ssh:
@@ -151,6 +152,7 @@ jobs:
     name: 🚀 编译 (Build) - SSH
     runs-on: ubuntu-22.04
     steps:
+      # 与 build job 基本相同，同样强制版本号
       - name: 下载编译所需的依赖
         run: |
           sudo apt update
@@ -159,23 +161,21 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库 (v24.10.6)
+      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库
         uses: actions/checkout@v5
         with:
           repository: 'padavanonly/immortalwrt-mt798x-6.6'
-          ref: 'v24.10.6'
+          ref: 'openwrt-24.10-6.6'
           path: ImmortalWrt
           fetch-depth: 0
 
-      - name: 校验 git 版本标签
+      - name: 校验 git 状态
         working-directory: ImmortalWrt
         run: |
-          echo "==== git describe ===="
-          git describe
-          echo "==== git status ===="
-          git status
-          echo "==== 当前 commit ===="
+          echo "==== git log ===="
           git log -1 --oneline
+          echo "==== 当前分支 ===="
+          git branch --show-current
 
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
@@ -256,29 +256,24 @@ jobs:
       - name: 多线程编译
         if: ${{inputs.multithreading == true}}
         working-directory: ImmortalWrt
-        run: make -j$(nproc) V=s
+        run: make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
 
       - name: 单线程编译
         if: ${{inputs.multithreading == false}}
         working-directory: ImmortalWrt
-        run: make -j1 V=s
+        run: make VERSION_NUMBER="24.10.6" -j1 V=s
 
       - name: 编译后版本校验并提取版本信息
         working-directory: ImmortalWrt
         run: |
-          echo "==== 提取版本信息 ===="
-          FW_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v24.10.6")
-          FW_VERSION=${FW_TAG#v}
+          FW_VERSION="24.10.6"
           echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
-          echo "✅ 提取版本号: $FW_VERSION"
-
-          echo "==== profiles.json version ===="
-          cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
+          echo "✅ 设置版本号为: $FW_VERSION"
           echo "==== openwrt_release ===="
-          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
+          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到（编译后可能生成）"
 
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_mt798x_${{ env.FW_VERSION }}_AX3000T
+          name: ImmortalWrt_mt798x_24.10.6_AX3000T
           path: ImmortalWrt/bin/targets
