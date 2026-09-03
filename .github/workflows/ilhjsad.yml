@@ -68,8 +68,8 @@ jobs:
           rm -rf temp_kenzok8
           echo "✅ quickstart 全部依赖链已拉取"
 
-      - name: 复制自定义配置文件（feeds.conf.default, diy.sh, seed.config, ax3000t-v6.6.config）
-        run: cp -f feeds.conf.default diy.sh seed.config ax3000t-v6.6.config ImmortalWrt/
+      - name: 复制自定义配置文件（feeds.conf.default, diy.sh, seed.config）
+        run: cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -81,24 +81,32 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 配置加载（使用已有配置，仅追加非内核模块的用户空间包） ==========
-      - name: 加载 AX3000T 配置
+      # ========== 核心改动：使用 defconfig + 手动设置设备 ==========
+      - name: 生成基础配置并设置设备与自定义包
         working-directory: ImmortalWrt
         run: |
-          rm -f .config
-          cp ax3000t-v6.6.config .config
-          
-          # 追加 seed.config 中的用户空间包（过滤掉所有 kmod-* 包，避免内核模块冲突）
+          # 1. 生成干净的基础配置（平台默认）
+          make defconfig
+
+          # 2. 启用 mediatek 平台和 filogic 子目标
+          sed -i 's/^# CONFIG_TARGET_mediatek is not set/CONFIG_TARGET_mediatek=y/' .config
+          sed -i 's/^# CONFIG_TARGET_mediatek_filogic is not set/CONFIG_TARGET_mediatek_filogic=y/' .config
+
+          # 3. 删除可能存在的设备选择行，然后追加 mtkuboot 设备
+          sed -i '/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t/d' .config
+          echo 'CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y' >> .config
+
+          # 4. 追加 seed.config 中非内核模块的用户空间包
           grep '^CONFIG_PACKAGE_' seed.config | grep -v 'kmod-' >> .config || true
-          
-          # 关闭 SHADOW_PASSWORDS（可选）
+
+          # 5. 关闭 SHADOW_PASSWORDS（可选，避免兼容性问题）
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-          
-          # 自动处理新内核符号（使用 olddefconfig 避免交互）
+
+          # 6. 使用 olddefconfig 自动处理新符号，解决依赖
           make olddefconfig
-          
-          # 设备校验（注意机型为 mtkuboot）
+
+          # 7. 设备校验（确保设备被正确选中）
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             echo "当前 .config 中的 TARGET_DEVICE 相关行："
@@ -200,7 +208,7 @@ jobs:
           echo "✅ quickstart 全部依赖链已拉取"
 
       - name: 复制自定义配置文件
-        run: cp -f feeds.conf.default diy.sh seed.config ax3000t-v6.6.config ImmortalWrt/
+        run: cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -212,11 +220,14 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      - name: 加载 AX3000T 配置
+      - name: 生成基础配置并设置设备与自定义包
         working-directory: ImmortalWrt
         run: |
-          rm -f .config
-          cp ax3000t-v6.6.config .config
+          make defconfig
+          sed -i 's/^# CONFIG_TARGET_mediatek is not set/CONFIG_TARGET_mediatek=y/' .config
+          sed -i 's/^# CONFIG_TARGET_mediatek_filogic is not set/CONFIG_TARGET_mediatek_filogic=y/' .config
+          sed -i '/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t/d' .config
+          echo 'CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y' >> .config
           grep '^CONFIG_PACKAGE_' seed.config | grep -v 'kmod-' >> .config || true
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
