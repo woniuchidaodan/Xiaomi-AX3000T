@@ -81,7 +81,7 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 核心改动：使用 defconfig + scripts/config 生成兼容配置 ==========
+      # ========== 使用 sed 直接修改 .config，避免 scripts/config 目录问题 ==========
       - name: 生成兼容的 .config 并添加自定义包
         working-directory: ImmortalWrt
         run: |
@@ -89,25 +89,21 @@ jobs:
           make defconfig
 
           # 2. 设置目标设备（AX3000T ubootmod）
-          ./scripts/config --set-val CONFIG_TARGET_mediatek y
-          ./scripts/config --set-val CONFIG_TARGET_mediatek_filogic y
-          ./scripts/config --set-val CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-ubootmod y
+          sed -i 's/^# CONFIG_TARGET_mediatek is not set/CONFIG_TARGET_mediatek=y/' .config
+          sed -i 's/^# CONFIG_TARGET_mediatek_filogic is not set/CONFIG_TARGET_mediatek_filogic=y/' .config
+          sed -i 's/^# CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-ubootmod is not set/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-ubootmod=y/' .config
 
-          # 3. 从 seed.config 中读取 CONFIG_PACKAGE_* 并启用
-          grep '^CONFIG_PACKAGE_' seed.config | while read line; do
-            # 提取包名（去除 CONFIG_PACKAGE_ 前缀）
-            pkg=$(echo $line | cut -d= -f1 | sed 's/^CONFIG_PACKAGE_//')
-            # 启用该包
-            ./scripts/config --set-val CONFIG_PACKAGE_${pkg} y
-          done
+          # 3. 从 seed.config 中读取 CONFIG_PACKAGE_* 并追加到 .config
+          grep '^CONFIG_PACKAGE_' seed.config >> .config
 
           # 4. 特别启用 OAF 和 TurboACC（确保依赖完整）
-          ./scripts/config --set-val CONFIG_PACKAGE_luci-app-oaf y
-          ./scripts/config --set-val CONFIG_PACKAGE_luci-app-turboacc-mtk y
-          ./scripts/config --set-val CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn y
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-turboacc-mtk=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn=y" >> .config
 
           # 5. 关闭可能导致问题的 CONFIG_SHADOW_PASSWORDS
-          ./scripts/config --disable CONFIG_SHADOW_PASSWORDS
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
           # 6. 运行 oldconfig 以解决依赖关系（自动选择默认值）
           yes "" | make oldconfig
@@ -227,17 +223,15 @@ jobs:
         working-directory: ImmortalWrt
         run: |
           make defconfig
-          ./scripts/config --set-val CONFIG_TARGET_mediatek y
-          ./scripts/config --set-val CONFIG_TARGET_mediatek_filogic y
-          ./scripts/config --set-val CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-ubootmod y
-          grep '^CONFIG_PACKAGE_' seed.config | while read line; do
-            pkg=$(echo $line | cut -d= -f1 | sed 's/^CONFIG_PACKAGE_//')
-            ./scripts/config --set-val CONFIG_PACKAGE_${pkg} y
-          done
-          ./scripts/config --set-val CONFIG_PACKAGE_luci-app-oaf y
-          ./scripts/config --set-val CONFIG_PACKAGE_luci-app-turboacc-mtk y
-          ./scripts/config --set-val CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn y
-          ./scripts/config --disable CONFIG_SHADOW_PASSWORDS
+          sed -i 's/^# CONFIG_TARGET_mediatek is not set/CONFIG_TARGET_mediatek=y/' .config
+          sed -i 's/^# CONFIG_TARGET_mediatek_filogic is not set/CONFIG_TARGET_mediatek_filogic=y/' .config
+          sed -i 's/^# CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-ubootmod is not set/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-ubootmod=y/' .config
+          grep '^CONFIG_PACKAGE_' seed.config >> .config
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-turboacc-mtk=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn=y" >> .config
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
           yes "" | make oldconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
