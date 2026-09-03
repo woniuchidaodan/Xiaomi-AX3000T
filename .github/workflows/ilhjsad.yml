@@ -36,52 +36,6 @@ jobs:
     runs-on: ubuntu-22.04
     name: 🚀 编译 (Build)
     steps:
-      - name: Before freeing up disk space
-        run: |
-          echo "Before freeing up disk space"
-          echo "=============================================================================="
-          df -hT
-          echo "=============================================================================="
-
-      - name: "Optimize Disk Space"
-        uses: "hugoalh/disk-space-optimizer-ghaction@v0.8.1"
-        with:
-          operate_sudo: "True"
-          general_include: ".+"
-          general_exclude: |-
-            ^GCC$
-            ^G\+\+$
-            Clang
-            LLVM
-          docker_include: ".+"
-          docker_prune: "True"
-          docker_clean: "True"
-          apt_prune: "True"
-          apt_clean: "True"
-          homebrew_prune: "True"
-          homebrew_clean: "True"
-          npm_prune: "True"
-          npm_clean: "True"
-          os_swap: "True"
-
-      - name: Freeing up disk space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 3072
-          swap-size-mb: 1
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
-          remove-codeql: "true"
-          remove-docker-images: "true"
-
-      - name: Free up disk space complete
-        run: |
-          echo "Free up disk space complete"
-          echo "=============================================================================="
-          df -hT
-          echo "=============================================================================="
-
       - name: 下载编译所需的依赖 (Install the software packages required for compilation)
         run: |
           export TMPDIR=$RUNNER_TEMP
@@ -157,8 +111,17 @@ jobs:
         working-directory: openWRT
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 配置加载（优先使用手动配置，否则自动生成） ==========
-      - name: 加载配置
+      # ========== SSH 连接（仅当 ssh 为 true 时执行） ==========
+      - name: 使用ssh连接编译环境，限时15分钟，可在连接后输入命令 `touch /tmp/keepalive` 保活
+        if: ${{inputs.ssh == true}}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+
+      # ========== 配置加载（分两种情况） ==========
+      # 情况一：非 SSH 模式，自动加载配置（如果有 manual 则使用，否则自动生成）
+      - name: 加载配置（非 SSH 模式）
+        if: ${{inputs.ssh == false}}
         working-directory: openWRT
         run: |
           if [ -f ../ax3000t-manual.config ]; then
@@ -167,7 +130,7 @@ jobs:
           else
             echo "⚠️ 未找到手动配置，使用自动生成"
             make defconfig
-            cat > mini.config << EOF
+            cat > mini.config << 'EOF'
             CONFIG_TARGET_mediatek=y
             CONFIG_TARGET_mediatek_filogic=y
             CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y
@@ -186,38 +149,54 @@ jobs:
           echo "✅ 配置已加载"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
-      # ========== SSH 连接（源自您提供的工作流） ==========
-      - name: 使用ssh连接编译环境，限时15分钟，可在连接后输入命令 `touch /tmp/keepalive` 保活
+      # 情况二：SSH 模式，在 SSH 后检查 manual 配置是否存在，若存在则复制并编译，否则提示用户
+      - name: 加载配置并编译（SSH 模式）
         if: ${{inputs.ssh == true}}
-        uses: mxschmitt/action-tmate@v3
-        with:
-          limit-access-to-actor: true
+        working-directory: openWRT
+        run: |
+          if [ -f ../ax3000t-manual.config ]; then
+            echo "✅ 使用手动生成的配置 ax3000t-manual.config"
+            cp ../ax3000t-manual.config .config
+            make defconfig
+            if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
+              echo "❌ 配置验证失败：设备未选中"
+              exit 1
+            fi
+            echo "✅ 配置已加载，开始编译"
+            if [ "${{inputs.multithreading}}" == "true" ]; then
+              make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
+            else
+              make VERSION_NUMBER="24.10.6" -j1 V=s
+            fi
+          else
+            echo "========================================="
+            echo "⚠️ 未检测到 ax3000t-manual.config"
+            echo "请在 SSH 中执行以下命令生成配置："
+            echo ""
+            echo "  cd openWRT"
+            echo "  make menuconfig"
+            echo "  # 选择设备后保存退出"
+            echo "  make defconfig"
+            echo "  cp .config ../ax3000t-manual.config"
+            echo ""
+            echo "然后重新触发工作流（不勾选 SSH）即可自动编译"
+            echo "========================================="
+            exit 1
+          fi
 
-      - name: 启用ssh生成了.config后在编译前上传配置(Upload config before build)
-        if: ${{inputs.ssh == true}}
-        uses: actions/upload-artifact@v4
-        with:
-          name: config-before-build
-          path: |
-            openWRT/.config
-            openWRT/feeds.conf.default
-          include-hidden-files: true
-
-      # ========== 非 SSH 模式：不需要复制 .config，因为已经加载 ==========
-      # 注意：这里删除了原先的 "再次复制 .config" 步骤
-
-      # ========== 编译 ==========
-      - name: 多线程编译 openWRT (Build openWRT multithreading)
-        if: ${{inputs.multithreading == true}}
+      # ========== 编译（仅非 SSH 模式执行，因为 SSH 模式已在上面编译） ==========
+      - name: 多线程编译 openWRT（非 SSH 模式）
+        if: ${{inputs.multithreading == true && inputs.ssh == false}}
         working-directory: openWRT
         run: make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
 
-      - name: 单线程编译 openWRT (Build openWRT single thread)
-        if: ${{inputs.multithreading == false}}
+      - name: 单线程编译 openWRT（非 SSH 模式）
+        if: ${{inputs.multithreading == false && inputs.ssh == false}}
         working-directory: openWRT
         run: make VERSION_NUMBER="24.10.6" -j1 V=s
 
-      - name: 上传编译结果到 Artifact (Upload build result to Artifact)
+      # ========== 上传产物（所有模式统一） ==========
+      - name: 上传编译结果到 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ImmortalWrt_mt798x_24.10.6_AX3000T
