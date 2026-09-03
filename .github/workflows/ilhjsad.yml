@@ -81,19 +81,16 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 直接使用新导出的配置文件（已兼容内核 6.6） ==========
+      # ========== 配置加载：使用 defconfig 替代 olddefconfig ==========
       - name: 加载 AX3000T 配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
           cp ax3000t-v6.6.config .config
-
-          # 如果需要额外追加 seed.config 中的包（以防配置文件未包含）
-          grep '^CONFIG_PACKAGE_' seed.config >> .config
-
-          # 运行 olddefconfig 自动解决依赖
-          make olddefconfig
-
+          # 额外追加 seed.config 中的包（防止遗漏）
+          grep '^CONFIG_PACKAGE_' seed.config >> .config || true
+          # 使用 defconfig 强制生成完整配置，自动处理所有新选项
+          make defconfig
           # 设备校验
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
@@ -112,7 +109,7 @@ jobs:
             ImmortalWrt/feeds.conf.default
             ImmortalWrt/.config
 
-      # ========== 编译时强制版本号为 24.10.6 ==========
+      # ========== 编译时强制版本号 ==========
       - name: 多线程编译
         if: ${{inputs.multithreading == true}}
         working-directory: ImmortalWrt
@@ -139,7 +136,6 @@ jobs:
           name: ImmortalWrt_mt798x_24.10.6_AX3000T
           path: ImmortalWrt/bin/targets
 
-  # ================= SSH 调试任务 =================
   build-ssh:
     if: ${{inputs.ssh == true}}
     name: 🚀 编译 (Build) - SSH
@@ -213,8 +209,8 @@ jobs:
         run: |
           rm -f .config
           cp ax3000t-v6.6.config .config
-          grep '^CONFIG_PACKAGE_' seed.config >> .config
-          make olddefconfig
+          grep '^CONFIG_PACKAGE_' seed.config >> .config || true
+          make defconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             echo "当前 .config 中的 TARGET_DEVICE 相关行："
