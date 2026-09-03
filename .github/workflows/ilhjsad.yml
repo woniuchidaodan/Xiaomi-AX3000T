@@ -13,6 +13,7 @@ on:
         default: false
 
 jobs:
+  # ================= 普通编译任务（无 SSH） =================
   build:
     if: ${{inputs.ssh == false}}
     runs-on: ubuntu-22.04
@@ -23,7 +24,7 @@ jobs:
           sudo apt update
           sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
 
-      - name: 克隆当前仓库（含 diy.sh 等自定义文件）
+      - name: 克隆当前仓库（含配置文件）
         uses: actions/checkout@v5
 
       - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库
@@ -68,8 +69,8 @@ jobs:
           rm -rf temp_kenzok8
           echo "✅ quickstart 全部依赖链已拉取"
 
-      - name: 复制自定义配置文件（feeds.conf.default, diy.sh）
-        run: cp -f feeds.conf.default diy.sh ImmortalWrt/
+      - name: 复制自定义配置文件（diy.sh, feeds.conf.default, seed.config）
+        run: cp -f diy.sh feeds.conf.default seed.config ImmortalWrt/
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -81,38 +82,52 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 使用 KCONFIG_ALLCONFIG 强制包含设备配置 ==========
-      - name: 生成配置并设置设备
+      # ---------- 配置加载 ----------
+      - name: 加载配置（优先使用手动生成的配置）
         working-directory: ImmortalWrt
         run: |
-          # 创建包含设备选择的最小配置文件
-          cat > mini.config << EOF
-          CONFIG_TARGET_mediatek=y
-          CONFIG_TARGET_mediatek_filogic=y
-          CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y
-          # CONFIG_SHADOW_PASSWORDS is not set
-          EOF
-          # 使用 KCONFIG_ALLCONFIG 运行 defconfig，强制包含上述设置
-          make KCONFIG_ALLCONFIG=mini.config defconfig
+          # 如果存在手动生成的配置，直接使用
+          if [ -f ../ax3000t-manual.config ]; then
+            echo "使用手动生成的配置 ax3000t-manual.config"
+            cp ../ax3000t-manual.config .config
+          else
+            echo "未找到手动配置，使用基础 defconfig + 设备选择"
+            make defconfig
+            # 设置设备（尝试 mtkuboot，若不存在则回退到 ubootmod）
+            if grep -q "DEVICE_xiaomi_mi-router-ax3000t-mtkuboot" target/linux/mediatek/image/filogic.mk; then
+              DEVICE="mtkuboot"
+            else
+              DEVICE="ubootmod"
+            fi
+            # 使用 KCONFIG_ALLCONFIG 强制包含设备
+            cat > mini.config << EOF
+            CONFIG_TARGET_mediatek=y
+            CONFIG_TARGET_mediatek_filogic=y
+            CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-${DEVICE}=y
+            # CONFIG_SHADOW_PASSWORDS is not set
+            EOF
+            make KCONFIG_ALLCONFIG=mini.config defconfig
+            # 追加 seed.config 中的用户空间包（过滤 kmod-）
+            grep '^CONFIG_PACKAGE_' ../seed.config | grep -v 'kmod-' >> .config || true
+            make defconfig
+          fi
+
           # 设备校验
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
-            echo "当前 .config 中的 TARGET_DEVICE 相关行："
             grep "CONFIG_TARGET_DEVICE" .config || true
             exit 1
           fi
-          echo "✅ 配置已加载，设备: AX3000T‑mtkuboot"
+          echo "✅ 配置已加载"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 编译前上传配置（用于调试）
         uses: actions/upload-artifact@v6
         with:
           name: config-before-build
-          path: |
-            ImmortalWrt/feeds.conf.default
-            ImmortalWrt/.config
+          path: ImmortalWrt/.config
 
-      # ========== 编译时强制版本号 ==========
+      # ---------- 编译 ----------
       - name: 多线程编译
         if: ${{inputs.multithreading == true}}
         working-directory: ImmortalWrt
@@ -123,16 +138,12 @@ jobs:
         working-directory: ImmortalWrt
         run: make VERSION_NUMBER="24.10.6" -j1 V=s
 
-      # ========== 版本提取（固定为 24.10.6） ==========
-      - name: 编译后版本校验并提取版本信息
+      - name: 提取版本信息并上传产物
         working-directory: ImmortalWrt
         run: |
           FW_VERSION="24.10.6"
           echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
           echo "✅ 设置版本号为: $FW_VERSION"
-          echo "==== openwrt_release ===="
-          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
-
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
@@ -142,8 +153,8 @@ jobs:
   # ================= SSH 调试任务 =================
   build-ssh:
     if: ${{inputs.ssh == true}}
-    name: 🚀 编译 (Build) - SSH
     runs-on: ubuntu-22.04
+    name: 🚀 编译 (Build) - SSH 调试模式
     steps:
       - name: 下载编译所需的依赖
         run: |
@@ -195,8 +206,8 @@ jobs:
           rm -rf temp_kenzok8
           echo "✅ quickstart 全部依赖链已拉取"
 
-      - name: 复制自定义配置文件
-        run: cp -f feeds.conf.default diy.sh ImmortalWrt/
+      - name: 复制自定义配置文件（diy.sh, feeds.conf.default, seed.config）
+        run: cp -f diy.sh feeds.conf.default seed.config ImmortalWrt/
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -208,57 +219,62 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      - name: 生成配置并设置设备
-        working-directory: ImmortalWrt
-        run: |
-          cat > mini.config << EOF
-          CONFIG_TARGET_mediatek=y
-          CONFIG_TARGET_mediatek_filogic=y
-          CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y
-          # CONFIG_SHADOW_PASSWORDS is not set
-          EOF
-          make KCONFIG_ALLCONFIG=mini.config defconfig
-          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 错误：设备类型未正确选中！"
-            grep "CONFIG_TARGET_DEVICE" .config || true
-            exit 1
-          fi
-          echo "✅ 配置已加载"
+      # 注意：此处不进行任何自动配置，一切交由用户手动操作
 
-      - name: 开启 SSH 服务
+      - name: 开启 SSH 服务（等待用户手动操作）
         uses: lhotari/action-upterm@v1
         with:
-          wait-timeout-minutes: 20
+          wait-timeout-minutes: 60   # 超时时间 60 分钟，足够用户操作
 
-      - name: 编译前上传配置
-        uses: actions/upload-artifact@v6
-        with:
-          name: config-before-build
-          path: |
-            ImmortalWrt/feeds.conf.default
-            ImmortalWrt/.config
+      # 用户手动操作完成后，继续执行编译（这里可以让用户自行决定是否编译，或直接等待超时）
+      # 由于 SSH 会话结束后，工作流会继续执行后续步骤，但用户可能还未完成，所以不自动编译。
+      # 如果用户希望编译，可以在 SSH 中手动执行 make 命令，或我们可以提供一个手动触发编译的机制。
+      # 这里我们简单提示用户，并等待，如果超时则结束。
+      - name: SSH 会话已结束，继续执行（若用户未完成编译，可忽略）
+        run: echo "SSH 会话结束。如果用户未完成编译，此步骤不会编译。"
 
-      - name: 多线程编译
-        if: ${{inputs.multithreading == true}}
-        working-directory: ImmortalWrt
-        run: make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
+      # 为了便于用户，我们可以允许用户通过上传配置的方式在后续步骤编译，但为了简化，我们在此不自动编译。
+      # 用户若在 SSH 中手动编译，产物仍在容器内，可通过其他方式获取（如 scp），但 actions/upload-artifact 需要文件存在。
+      # 因此，如果用户在 SSH 中编译了，可以手动将产物复制到工作区，然后触发上传。
+      # 但更简单的是：用户生成配置后，退出 SSH，然后工作流会继续执行编译（如果我们将编译步骤放在 SSH 之后）。
+      # 但我们上面没有放置编译步骤，所以我们可以添加一个选项：如果用户希望自动编译，可以在 SSH 中 touch /tmp/compile_me，然后工作流检测。
+      # 不过为了简单，推荐用户在 SSH 中手动完成全部操作（生成配置 + 编译 + 上传），这更灵活。
+      # 我们可以提供指导，让用户手动执行 make -j$(nproc) V=s，然后手动上传产物到 artifacts 比较麻烦，不如让用户将编译好的固件通过 scp 或 curl 下载。
+      # 但更好的方案是：用户在 SSH 中生成配置后，退出 SSH，工作流自动使用该配置编译。
+      # 因此，我们修改：在 SSH 后，添加一个检查，如果 /workspaces/Xiaomi-AX3000T/ax3000t-manual.config 存在，则复制并编译。
+      # 这样用户只需在 SSH 中生成配置并保存到仓库根目录，然后退出，工作流就会自动编译。
 
-      - name: 单线程编译
-        if: ${{inputs.multithreading == false}}
-        working-directory: ImmortalWrt
-        run: make VERSION_NUMBER="24.10.6" -j1 V=s
-
-      - name: 编译后版本校验并提取版本信息
+      - name: 检查用户是否已生成配置
+        id: check_config
         working-directory: ImmortalWrt
         run: |
-          FW_VERSION="24.10.6"
-          echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
-          echo "✅ 设置版本号为: $FW_VERSION"
-          echo "==== openwrt_release ===="
-          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
+          if [ -f ../ax3000t-manual.config ]; then
+            echo "config_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "config_exists=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: 上传编译结果
+      - name: 如果用户已生成配置，则使用它进行编译
+        if: steps.check_config.outputs.config_exists == 'true'
+        working-directory: ImmortalWrt
+        run: |
+          cp ../ax3000t-manual.config .config
+          make defconfig
+          grep -q "xiaomi_mi-router-ax3000t" .config || { echo "设备未选中"; exit 1; }
+          # 开始编译
+          if [ "${{inputs.multithreading}}" == "true" ]; then
+            make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
+          else
+            make VERSION_NUMBER="24.10.6" -j1 V=s
+          fi
+
+      - name: 如果编译成功，上传产物
+        if: steps.check_config.outputs.config_exists == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: ImmortalWrt_mt798x_24.10.6_AX3000T
           path: ImmortalWrt/bin/targets
+
+      - name: 若未生成配置，提示用户
+        if: steps.check_config.outputs.config_exists == 'false'
+        run: echo "未检测到 ax3000t-manual.config，跳过编译。请在 SSH 中生成配置并保存到仓库根目录。"
