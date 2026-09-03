@@ -1,60 +1,138 @@
-name: 🚀 编译 (Build) - ImmortalWrt (mt798x-6.6) for AX3000T
+name: 🚀 编译 immortalwrt(Build immortalwrt)
 
 on:
   workflow_dispatch:
     inputs:
+      owner:
+        description: "openWRT 仓库的拥有者 (Owner of openWRT repo)"
+        type: string
+        required: true
+        default: "padavanonly"
+      repo:
+        description: "openWRT 仓库的名字 (Name of openWRT repo)"
+        type: string
+        required: true
+        default: "immortalwrt-mt798x-6.6"
+      branch:
+        description: "openWRT 仓库的分支 (Branch of openWRT repo)"
+        type: string
+        required: true
+        default: "openwrt-24.10-6.6"
       multithreading:
-        description: '开启多线程编译 (Enable multithreading build)'
+        description: "开启多线程编译 (Enable multithreading build)"
         type: boolean
         default: true
       ssh:
-        description: '开启 SSH 调试模式 (Enable SSH debug)'
+        description: "使用 ssh 连接到编译环境 (Connect to the build environment using ssh)"
+        type: boolean
+        default: false
+      isFiles:
+        description: "使用files大法 (Whether to upload the etc files)"
         type: boolean
         default: false
 
 jobs:
-  # ================= 普通编译任务 =================
   build:
-    if: ${{inputs.ssh == false}}
     runs-on: ubuntu-22.04
     name: 🚀 编译 (Build)
     steps:
-      - name: 下载编译所需的依赖
+      - name: Before freeing up disk space
         run: |
-          sudo apt update
-          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
+          echo "Before freeing up disk space"
+          echo "=============================================================================="
+          df -hT
+          echo "=============================================================================="
 
-      - name: 克隆当前仓库
-        uses: actions/checkout@v5
-
-      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库
-        uses: actions/checkout@v5
+      - name: "Optimize Disk Space"
+        uses: "hugoalh/disk-space-optimizer-ghaction@v0.8.1"
         with:
-          repository: 'padavanonly/immortalwrt-mt798x-6.6'
-          ref: 'openwrt-24.10-6.6'
-          path: ImmortalWrt
-          fetch-depth: 0
+          operate_sudo: "True"
+          general_include: ".+"
+          general_exclude: |-
+            ^GCC$
+            ^G\+\+$
+            Clang
+            LLVM
+          docker_include: ".+"
+          docker_prune: "True"
+          docker_clean: "True"
+          apt_prune: "True"
+          apt_clean: "True"
+          homebrew_prune: "True"
+          homebrew_clean: "True"
+          npm_prune: "True"
+          npm_clean: "True"
+          os_swap: "True"
 
-      - name: 校验 git 状态
-        working-directory: ImmortalWrt
+      - name: Freeing up disk space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 3072
+          swap-size-mb: 1
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-docker-images: "true"
+
+      - name: Free up disk space complete
         run: |
-          echo "==== git log ===="
-          git log -1 --oneline
-          echo "==== 当前分支 ===="
-          git branch --show-current
+          echo "Free up disk space complete"
+          echo "=============================================================================="
+          df -hT
+          echo "=============================================================================="
 
+      - name: 下载编译所需的依赖 (Install the software packages required for compilation)
+        run: |
+          export TMPDIR=$RUNNER_TEMP
+          sudo mkdir -p $TMPDIR
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /var/cache/apt/*
+          sudo apt-get update -y
+
+          sudo apt-get install -y --no-install-recommends ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib \
+            g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev \
+            libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
+            libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano \
+            ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils \
+            python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs \
+            upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
+
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+
+      - name: 克隆当前仓库 (Clone current repo)
+        uses: actions/checkout@v4
+
+      - name: 克隆 openWRT 仓库 (Clone openWRT repo)
+        uses: actions/checkout@v4
+        with:
+          repository: "${{inputs.owner}}/${{inputs.repo}}"
+          ref: ${{inputs.branch}}
+          path: openWRT
+
+      - name: 复制当前仓库的配置文件到 openWRT 仓库 (Copy current repo config to openWRT repo)
+        run: cp -f .config diy.sh feeds.conf.default seed.config openWRT/
+
+      - name: 如果选择了上传 files 大法，则复制 files 目录到 openWRT 仓库
+        if: ${{inputs.isFiles == true}}
+        run: cp -r files openWRT/files
+
+      # ========== 手动克隆第三方插件 ==========
       - name: 手动克隆 UA3F 源码
-        working-directory: ImmortalWrt
+        working-directory: openWRT
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
       - name: 克隆 OpenAppFilter (OAF) 源码
-        working-directory: ImmortalWrt
+        working-directory: openWRT
         run: |
           git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
       - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
-        working-directory: ImmortalWrt
+        working-directory: openWRT
         run: |
           git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
           cd temp_kenzok8
@@ -69,27 +147,25 @@ jobs:
           rm -rf temp_kenzok8
           echo "✅ quickstart 全部依赖链已拉取"
 
-      - name: 复制自定义配置文件
-        run: cp -f diy.sh feeds.conf.default seed.config ImmortalWrt/
-
-      - name: 运行 diy.sh
-        working-directory: ImmortalWrt
+      - name: 运行 diy.sh (Run diy.sh)
+        working-directory: openWRT
         run: |
           chmod +x diy.sh
           ./diy.sh
 
-      - name: 更新并下载 feeds
-        working-directory: ImmortalWrt
+      - name: 更新并下载 feeds (Update and download feeds)
+        working-directory: openWRT
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
+      # ========== 配置加载（优先使用手动配置） ==========
       - name: 加载配置
-        working-directory: ImmortalWrt
+        working-directory: openWRT
         run: |
           if [ -f ../ax3000t-manual.config ]; then
-            echo "✅ 使用手动生成的配置"
+            echo "✅ 使用手动生成的配置 ax3000t-manual.config"
             cp ../ax3000t-manual.config .config
           else
-            echo "⚠️ 使用自动生成配置"
+            echo "⚠️ 未找到手动配置，使用自动生成"
             make defconfig
             cat > mini.config << EOF
             CONFIG_TARGET_mediatek=y
@@ -103,160 +179,48 @@ jobs:
           fi
 
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 设备未选中"
+            echo "❌ 错误：设备类型未正确选中！"
             grep "CONFIG_TARGET_DEVICE" .config || true
             exit 1
           fi
           echo "✅ 配置已加载"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
-      - name: 编译前上传配置
-        uses: actions/upload-artifact@v5
-        with:
-          name: config-before-build
-          path: ImmortalWrt/.config
-
-      - name: 多线程编译
-        if: ${{inputs.multithreading == true}}
-        working-directory: ImmortalWrt
-        run: make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
-
-      - name: 单线程编译
-        if: ${{inputs.multithreading == false}}
-        working-directory: ImmortalWrt
-        run: make VERSION_NUMBER="24.10.6" -j1 V=s
-
-      - name: 上传编译结果
-        uses: actions/upload-artifact@v5
-        with:
-          name: ImmortalWrt_mt798x_24.10.6_AX3000T
-          path: ImmortalWrt/bin/targets
-
-  # ================= SSH 调试任务（tmate） =================
-  build-ssh:
-    if: ${{inputs.ssh == true}}
-    runs-on: ubuntu-22.04
-    name: 🔧 SSH 调试模式
-    steps:
-      - name: 下载编译所需的依赖
-        run: |
-          sudo apt update
-          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
-
-      - name: 克隆当前仓库
-        uses: actions/checkout@v5
-
-      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库
-        uses: actions/checkout@v5
-        with:
-          repository: 'padavanonly/immortalwrt-mt798x-6.6'
-          ref: 'openwrt-24.10-6.6'
-          path: ImmortalWrt
-          fetch-depth: 0
-
-      - name: 校验 git 状态
-        working-directory: ImmortalWrt
-        run: |
-          echo "==== git log ===="
-          git log -1 --oneline
-          echo "==== 当前分支 ===="
-          git branch --show-current
-
-      - name: 手动克隆 UA3F 源码
-        working-directory: ImmortalWrt
-        run: |
-          git clone https://github.com/SunBK201/UA3F.git package/UA3F
-
-      - name: 克隆 OpenAppFilter (OAF) 源码
-        working-directory: ImmortalWrt
-        run: |
-          git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
-
-      - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
-        working-directory: ImmortalWrt
-        run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
-          cd temp_kenzok8
-          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
-          cd ..
-          mv temp_kenzok8/quickstart package/
-          mv temp_kenzok8/luci-app-quickstart package/
-          mv temp_kenzok8/luci-app-store package/
-          mv temp_kenzok8/luci-lib-taskd package/
-          mv temp_kenzok8/luci-lib-xterm package/
-          mv temp_kenzok8/taskd package/
-          rm -rf temp_kenzok8
-          echo "✅ quickstart 全部依赖链已拉取"
-
-      - name: 复制自定义配置文件
-        run: cp -f diy.sh feeds.conf.default seed.config ImmortalWrt/
-
-      - name: 运行 diy.sh
-        working-directory: ImmortalWrt
-        run: |
-          chmod +x diy.sh
-          ./diy.sh
-
-      - name: 更新并下载 feeds
-        working-directory: ImmortalWrt
-        run: ./scripts/feeds update -a && ./scripts/feeds install -a
-
-      # ========== SSH 连接（tmate） ==========
-      - name: 开启 SSH 连接（tmate）
+      # ========== SSH 连接（源自您提供的工作流） ==========
+      - name: 使用ssh连接编译环境，限时15分钟，可在连接后输入命令 `touch /tmp/keepalive` 保活
+        if: ${{inputs.ssh == true}}
         uses: mxschmitt/action-tmate@v3
         with:
           limit-access-to-actor: true
 
-      # ========== 用户操作完成后自动编译 ==========
-      - name: 检查配置是否已生成
-        id: check_config
-        working-directory: ImmortalWrt
-        run: |
-          if [ -f ../ax3000t-manual.config ]; then
-            echo "config_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "config_exists=false" >> $GITHUB_OUTPUT
-          fi
+      - name: 启用ssh生成了.config后在编译前上传配置(Upload config before build)
+        if: ${{inputs.ssh == true}}
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-before-build
+          path: |
+            openWRT/.config
+            openWRT/feeds.conf.default
+          include-hidden-files: true
 
-      - name: 使用生成的配置编译
-        if: steps.check_config.outputs.config_exists == 'true'
-        working-directory: ImmortalWrt
-        run: |
-          cp ../ax3000t-manual.config .config
-          make defconfig
-          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 配置验证失败"
-            exit 1
-          fi
-          if [ "${{inputs.multithreading}}" == "true" ]; then
-            make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
-          else
-            make VERSION_NUMBER="24.10.6" -j1 V=s
-          fi
+      # ========== 非 SSH 模式：直接使用仓库中的 .config ==========
+      - name: 再次复制当前仓库的配置文件到 openWRT 仓库 (Copy current repo config to openWRT repo)
+        if: ${{inputs.ssh == false}}
+        run: cp -f .config openWRT/
 
-      - name: 上传编译结果
-        if: steps.check_config.outputs.config_exists == 'true'
-        uses: actions/upload-artifact@v5
+      # ========== 编译 ==========
+      - name: 多线程编译 openWRT (Build openWRT multithreading)
+        if: ${{inputs.multithreading == true}}
+        working-directory: openWRT
+        run: make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
+
+      - name: 单线程编译 openWRT (Build openWRT single thread)
+        if: ${{inputs.multithreading == false}}
+        working-directory: openWRT
+        run: make VERSION_NUMBER="24.10.6" -j1 V=s
+
+      - name: 上传编译结果到 Artifact (Upload build result to Artifact)
+        uses: actions/upload-artifact@v4
         with:
           name: ImmortalWrt_mt798x_24.10.6_AX3000T
-          path: ImmortalWrt/bin/targets
-
-      - name: 提示用户生成配置
-        if: steps.check_config.outputs.config_exists == 'false'
-        run: |
-          echo "========================================="
-          echo "⚠️ 未检测到 ax3000t-manual.config"
-          echo ""
-          echo "请在 SSH 中执行："
-          echo ""
-          echo "  cd ImmortalWrt"
-          echo "  make menuconfig"
-          echo "  # 选择 Target System → MediaTek"
-          echo "  # 选择 Subtarget → Filogic 8x0 (MT798x)"
-          echo "  # 选择 Target Profile → Xiaomi Mi Router AX3000T (MTK U-Boot layout)"
-          echo "  # 保存退出"
-          echo "  make defconfig"
-          echo "  cp .config ../ax3000t-manual.config"
-          echo ""
-          echo "然后重新触发工作流（不勾选 SSH）"
-          echo "========================================="
+          path: openWRT/bin/targets
