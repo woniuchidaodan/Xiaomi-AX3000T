@@ -23,7 +23,7 @@ jobs:
           sudo apt update
           sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
 
-      - name: 克隆当前仓库（含配置文件、diy.sh 等）
+      - name: 克隆当前仓库（含 diy.sh 等自定义文件）
         uses: actions/checkout@v5
 
       - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库
@@ -81,24 +81,31 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 配置加载：使用 defconfig 替代 olddefconfig ==========
+      # ========== 配置加载（使用已有配置，仅追加非内核模块的用户空间包） ==========
       - name: 加载 AX3000T 配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
           cp ax3000t-v6.6.config .config
-          # 额外追加 seed.config 中的包（防止遗漏）
-          grep '^CONFIG_PACKAGE_' seed.config >> .config || true
-          # 使用 defconfig 强制生成完整配置，自动处理所有新选项
-          make defconfig
-          # 设备校验
+          
+          # 追加 seed.config 中的用户空间包（过滤掉所有 kmod-* 包，避免内核模块冲突）
+          grep '^CONFIG_PACKAGE_' seed.config | grep -v 'kmod-' >> .config || true
+          
+          # 关闭 SHADOW_PASSWORDS（可选）
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+          
+          # 自动处理新内核符号（使用 olddefconfig 避免交互）
+          make olddefconfig
+          
+          # 设备校验（注意机型为 mtkuboot）
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             echo "当前 .config 中的 TARGET_DEVICE 相关行："
-            grep "CONFIG_TARGET" .config | grep -v "^#" || true
+            grep "CONFIG_TARGET_DEVICE" .config || true
             exit 1
           fi
-          echo "✅ 配置已加载，设备: AX3000T‑ubootmod"
+          echo "✅ 配置已加载，设备: AX3000T‑mtkuboot"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 编译前上传配置（用于调试）
@@ -136,6 +143,7 @@ jobs:
           name: ImmortalWrt_mt798x_24.10.6_AX3000T
           path: ImmortalWrt/bin/targets
 
+  # ================= SSH 调试任务 =================
   build-ssh:
     if: ${{inputs.ssh == true}}
     name: 🚀 编译 (Build) - SSH
@@ -209,12 +217,13 @@ jobs:
         run: |
           rm -f .config
           cp ax3000t-v6.6.config .config
-          grep '^CONFIG_PACKAGE_' seed.config >> .config || true
-          make defconfig
+          grep '^CONFIG_PACKAGE_' seed.config | grep -v 'kmod-' >> .config || true
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+          make olddefconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
-            echo "当前 .config 中的 TARGET_DEVICE 相关行："
-            grep "CONFIG_TARGET" .config | grep -v "^#" || true
+            grep "CONFIG_TARGET_DEVICE" .config || true
             exit 1
           fi
           echo "✅ 配置已加载"
