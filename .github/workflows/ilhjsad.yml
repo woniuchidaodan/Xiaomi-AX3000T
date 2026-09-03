@@ -8,141 +8,16 @@ on:
         type: boolean
         default: true
       ssh:
-        description: '使用 ssh 连接到编译环境 (Connect to the build environment using ssh)'
+        description: '开启 Web 终端调试 (Enable web terminal debug)'
         type: boolean
         default: false
 
 jobs:
+  # ================= 普通编译任务 =================
   build:
     if: ${{inputs.ssh == false}}
     runs-on: ubuntu-22.04
     name: 🚀 编译 (Build)
-    steps:
-      - name: 下载编译所需的依赖
-        run: |
-          sudo apt update
-          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
-
-      - name: 克隆当前仓库（含配置文件）
-        uses: actions/checkout@v5
-
-      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库
-        uses: actions/checkout@v5
-        with:
-          repository: 'padavanonly/immortalwrt-mt798x-6.6'
-          ref: 'openwrt-24.10-6.6'
-          path: ImmortalWrt
-          fetch-depth: 0
-
-      - name: 校验 git 状态
-        working-directory: ImmortalWrt
-        run: |
-          echo "==== git log ===="
-          git log -1 --oneline
-          echo "==== 当前分支 ===="
-          git branch --show-current
-
-      - name: 手动克隆 UA3F 源码
-        working-directory: ImmortalWrt
-        run: |
-          git clone https://github.com/SunBK201/UA3F.git package/UA3F
-
-      - name: 克隆 OpenAppFilter (OAF) 源码
-        working-directory: ImmortalWrt
-        run: |
-          git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
-
-      - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
-        working-directory: ImmortalWrt
-        run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
-          cd temp_kenzok8
-          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
-          cd ..
-          mv temp_kenzok8/quickstart package/
-          mv temp_kenzok8/luci-app-quickstart package/
-          mv temp_kenzok8/luci-app-store package/
-          mv temp_kenzok8/luci-lib-taskd package/
-          mv temp_kenzok8/luci-lib-xterm package/
-          mv temp_kenzok8/taskd package/
-          rm -rf temp_kenzok8
-          echo "✅ quickstart 全部依赖链已拉取"
-
-      - name: 复制自定义配置文件（diy.sh, feeds.conf.default, seed.config）
-        run: cp -f diy.sh feeds.conf.default seed.config ImmortalWrt/
-
-      - name: 运行 diy.sh
-        working-directory: ImmortalWrt
-        run: |
-          chmod +x diy.sh
-          ./diy.sh
-
-      - name: 更新并下载 feeds
-        working-directory: ImmortalWrt
-        run: ./scripts/feeds update -a && ./scripts/feeds install -a
-
-      # ---------- 配置加载（优先使用手动配置） ----------
-      - name: 加载配置
-        working-directory: ImmortalWrt
-        run: |
-          if [ -f ../ax3000t-manual.config ]; then
-            echo "✅ 使用手动生成的配置 ax3000t-manual.config"
-            cp ../ax3000t-manual.config .config
-          else
-            echo "⚠️ 未找到手动配置，使用自动生成"
-            make defconfig
-            cat > mini.config << EOF
-            CONFIG_TARGET_mediatek=y
-            CONFIG_TARGET_mediatek_filogic=y
-            CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y
-            # CONFIG_SHADOW_PASSWORDS is not set
-            EOF
-            make KCONFIG_ALLCONFIG=mini.config defconfig
-            grep '^CONFIG_PACKAGE_' ../seed.config | grep -v 'kmod-' >> .config || true
-            make defconfig
-          fi
-
-          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 错误：设备类型未正确选中！"
-            grep "CONFIG_TARGET_DEVICE" .config || true
-            exit 1
-          fi
-          echo "✅ 配置已加载"
-          grep "CONFIG_TARGET_DEVICE" .config || true
-
-      - name: 编译前上传配置（用于调试）
-        uses: actions/upload-artifact@v5
-        with:
-          name: config-before-build
-          path: ImmortalWrt/.config
-
-      # ---------- 编译 ----------
-      - name: 多线程编译
-        if: ${{inputs.multithreading == true}}
-        working-directory: ImmortalWrt
-        run: make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
-
-      - name: 单线程编译
-        if: ${{inputs.multithreading == false}}
-        working-directory: ImmortalWrt
-        run: make VERSION_NUMBER="24.10.6" -j1 V=s
-
-      - name: 提取版本信息并上传产物
-        run: |
-          FW_VERSION="24.10.6"
-          echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
-
-      - name: 上传编译结果
-        uses: actions/upload-artifact@v5
-        with:
-          name: ImmortalWrt_mt798x_24.10.6_AX3000T
-          path: ImmortalWrt/bin/targets
-
-  # ================= SSH 调试任务（使用 tmate） =================
-  build-ssh:
-    if: ${{inputs.ssh == true}}
-    runs-on: ubuntu-22.04
-    name: 🚀 SSH 调试模式
     steps:
       - name: 下载编译所需的依赖
         run: |
@@ -194,7 +69,7 @@ jobs:
           rm -rf temp_kenzok8
           echo "✅ quickstart 全部依赖链已拉取"
 
-      - name: 复制自定义配置文件（diy.sh, feeds.conf.default, seed.config）
+      - name: 复制自定义配置文件
         run: cp -f diy.sh feeds.conf.default seed.config ImmortalWrt/
 
       - name: 运行 diy.sh
@@ -207,15 +82,131 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 核心：tmate SSH 连接（限时 60 分钟） ==========
-      - name: 开启 SSH 连接（tmate）
-        uses: mxschmitt/action-tmate@v3
-        with:
-          limit-access-to-actor: true   # 仅允许 GitHub 账号本人访问
-          timeout-minutes: 60           # 60 分钟超时
+      - name: 加载配置
+        working-directory: ImmortalWrt
+        run: |
+          if [ -f ../ax3000t-manual.config ]; then
+            echo "✅ 使用手动生成的配置 ax3000t-manual.config"
+            cp ../ax3000t-manual.config .config
+          else
+            echo "⚠️ 未找到手动配置，使用自动生成"
+            make defconfig
+            cat > mini.config << EOF
+            CONFIG_TARGET_mediatek=y
+            CONFIG_TARGET_mediatek_filogic=y
+            CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y
+            # CONFIG_SHADOW_PASSWORDS is not set
+            EOF
+            make KCONFIG_ALLCONFIG=mini.config defconfig
+            grep '^CONFIG_PACKAGE_' ../seed.config | grep -v 'kmod-' >> .config || true
+            make defconfig
+          fi
 
-      # ========== 用户手动操作完成后，自动使用生成的配置编译 ==========
-      - name: 检查用户是否已生成配置
+          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
+            echo "❌ 错误：设备类型未正确选中！"
+            grep "CONFIG_TARGET_DEVICE" .config || true
+            exit 1
+          fi
+          echo "✅ 配置已加载"
+          grep "CONFIG_TARGET_DEVICE" .config || true
+
+      - name: 编译前上传配置
+        uses: actions/upload-artifact@v5
+        with:
+          name: config-before-build
+          path: ImmortalWrt/.config
+
+      - name: 多线程编译
+        if: ${{inputs.multithreading == true}}
+        working-directory: ImmortalWrt
+        run: make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
+
+      - name: 单线程编译
+        if: ${{inputs.multithreading == false}}
+        working-directory: ImmortalWrt
+        run: make VERSION_NUMBER="24.10.6" -j1 V=s
+
+      - name: 上传编译结果
+        uses: actions/upload-artifact@v5
+        with:
+          name: ImmortalWrt_mt798x_24.10.6_AX3000T
+          path: ImmortalWrt/bin/targets
+
+  # ================= Web 终端调试任务 =================
+  build-ssh:
+    if: ${{inputs.ssh == true}}
+    runs-on: ubuntu-22.04
+    name: 🚀 Web 终端调试模式
+    steps:
+      - name: 下载编译所需的依赖
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
+
+      - name: 克隆当前仓库
+        uses: actions/checkout@v5
+
+      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库
+        uses: actions/checkout@v5
+        with:
+          repository: 'padavanonly/immortalwrt-mt798x-6.6'
+          ref: 'openwrt-24.10-6.6'
+          path: ImmortalWrt
+          fetch-depth: 0
+
+      - name: 校验 git 状态
+        working-directory: ImmortalWrt
+        run: |
+          echo "==== git log ===="
+          git log -1 --oneline
+          echo "==== 当前分支 ===="
+          git branch --show-current
+
+      - name: 手动克隆 UA3F 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/SunBK201/UA3F.git package/UA3F
+
+      - name: 克隆 OpenAppFilter (OAF) 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
+
+      - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
+        working-directory: ImmortalWrt
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
+          cd temp_kenzok8
+          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
+          cd ..
+          mv temp_kenzok8/quickstart package/
+          mv temp_kenzok8/luci-app-quickstart package/
+          mv temp_kenzok8/luci-app-store package/
+          mv temp_kenzok8/luci-lib-taskd package/
+          mv temp_kenzok8/luci-lib-xterm package/
+          mv temp_kenzok8/taskd package/
+          rm -rf temp_kenzok8
+          echo "✅ quickstart 全部依赖链已拉取"
+
+      - name: 复制自定义配置文件
+        run: cp -f diy.sh feeds.conf.default seed.config ImmortalWrt/
+
+      - name: 运行 diy.sh
+        working-directory: ImmortalWrt
+        run: |
+          chmod +x diy.sh
+          ./diy.sh
+
+      - name: 更新并下载 feeds
+        working-directory: ImmortalWrt
+        run: ./scripts/feeds update -a && ./scripts/feeds install -a
+
+      # ========== 启动 Web 终端（无需公钥） ==========
+      - name: 开启 Web 终端
+        uses: P3TERX/debugger-action@v1
+
+      # ========== 用户操作完成后自动编译 ==========
+      - name: 检查配置是否已生成
         id: check_config
         working-directory: ImmortalWrt
         run: |
@@ -223,17 +214,16 @@ jobs:
             echo "config_exists=true" >> $GITHUB_OUTPUT
           else
             echo "config_exists=false" >> $GITHUB_OUTPUT
-            echo "⚠️ 未检测到 ax3000t-manual.config，跳过编译"
           fi
 
-      - name: 如果用户已生成配置，则使用它进行编译
+      - name: 使用生成的配置编译
         if: steps.check_config.outputs.config_exists == 'true'
         working-directory: ImmortalWrt
         run: |
           cp ../ax3000t-manual.config .config
           make defconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 配置验证失败：设备未选中"
+            echo "❌ 配置验证失败"
             exit 1
           fi
           if [ "${{inputs.multithreading}}" == "true" ]; then
@@ -242,25 +232,28 @@ jobs:
             make VERSION_NUMBER="24.10.6" -j1 V=s
           fi
 
-      - name: 如果编译成功，上传产物
+      - name: 上传编译结果
         if: steps.check_config.outputs.config_exists == 'true'
         uses: actions/upload-artifact@v5
         with:
           name: ImmortalWrt_mt798x_24.10.6_AX3000T
           path: ImmortalWrt/bin/targets
 
-      - name: 若未生成配置，提示用户
+      - name: 提示用户生成配置
         if: steps.check_config.outputs.config_exists == 'false'
         run: |
           echo "========================================="
-          echo "⚠️ 未检测到 ax3000t-manual.config，跳过编译"
-          echo "请在 SSH 中执行以下命令生成配置："
+          echo "⚠️ 未检测到 ax3000t-manual.config"
+          echo "请在 Web 终端中执行："
           echo ""
           echo "  cd ImmortalWrt"
           echo "  make menuconfig"
-          echo "  # 选择设备后保存退出"
+          echo "  # 选择 Target System → MediaTek"
+          echo "  # 选择 Subtarget → Filogic 8x0 (MT798x)"
+          echo "  # 选择 Target Profile → Xiaomi Mi Router AX3000T (MTK U-Boot layout)"
+          echo "  # 保存退出"
           echo "  make defconfig"
           echo "  cp .config ../ax3000t-manual.config"
           echo ""
-          echo "然后重新触发工作流（不勾选 SSH）即可自动编译"
+          echo "然后重新触发工作流（不勾选 SSH）"
           echo "========================================="
