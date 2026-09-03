@@ -113,8 +113,8 @@ jobs:
           ref: ${{inputs.branch}}
           path: openWRT
 
-      - name: 复制当前仓库的配置文件到 openWRT 仓库 (Copy current repo config to openWRT repo)
-        run: cp -f .config diy.sh feeds.conf.default seed.config openWRT/
+      - name: 复制当前仓库的自定义文件到 openWRT 仓库 (Copy custom files)
+        run: cp -f diy.sh feeds.conf.default seed.config openWRT/
 
       - name: 如果选择了上传 files 大法，则复制 files 目录到 openWRT 仓库
         if: ${{inputs.isFiles == true}}
@@ -157,7 +157,7 @@ jobs:
         working-directory: openWRT
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 配置加载（优先使用手动配置） ==========
+      # ========== 配置加载（优先使用手动配置，否则自动生成） ==========
       - name: 加载配置
         working-directory: openWRT
         run: |
@@ -203,10 +203,8 @@ jobs:
             openWRT/feeds.conf.default
           include-hidden-files: true
 
-      # ========== 非 SSH 模式：直接使用仓库中的 .config ==========
-      - name: 再次复制当前仓库的配置文件到 openWRT 仓库 (Copy current repo config to openWRT repo)
-        if: ${{inputs.ssh == false}}
-        run: cp -f .config openWRT/
+      # ========== 非 SSH 模式：不需要复制 .config，因为已经加载 ==========
+      # 注意：这里删除了原先的 "再次复制 .config" 步骤
 
       # ========== 编译 ==========
       - name: 多线程编译 openWRT (Build openWRT multithreading)
