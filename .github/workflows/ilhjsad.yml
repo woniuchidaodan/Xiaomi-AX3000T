@@ -23,10 +23,10 @@ jobs:
           sudo apt update
           sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
 
-      - name: 克隆当前仓库（含 diy.sh 等自定义文件）
+      - name: 克隆当前仓库（含配置文件、diy.sh 等）
         uses: actions/checkout@v5
 
-      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库 (openwrt-24.10-6.6 分支)
+      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库
         uses: actions/checkout@v5
         with:
           repository: 'padavanonly/immortalwrt-mt798x-6.6'
@@ -68,8 +68,8 @@ jobs:
           rm -rf temp_kenzok8
           echo "✅ quickstart 全部依赖链已拉取"
 
-      - name: 复制自定义配置文件（feeds.conf.default, diy.sh, seed.config）
-        run: cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
+      - name: 复制自定义配置文件（feeds.conf.default, diy.sh, seed.config, ax3000t-v6.6.config）
+        run: cp -f feeds.conf.default diy.sh seed.config ax3000t-v6.6.config ImmortalWrt/
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -81,39 +81,27 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 使用 sed 直接修改 .config，避免 scripts/config 目录问题 ==========
-      - name: 生成兼容的 .config 并添加自定义包
+      # ========== 直接使用新导出的配置文件（已兼容内核 6.6） ==========
+      - name: 加载 AX3000T 配置
         working-directory: ImmortalWrt
         run: |
-          # 1. 生成基于目标平台的默认配置
-          make defconfig
+          rm -f .config
+          cp ax3000t-v6.6.config .config
 
-          # 2. 设置目标设备（AX3000T ubootmod）
-          sed -i 's/^# CONFIG_TARGET_mediatek is not set/CONFIG_TARGET_mediatek=y/' .config
-          sed -i 's/^# CONFIG_TARGET_mediatek_filogic is not set/CONFIG_TARGET_mediatek_filogic=y/' .config
-          sed -i 's/^# CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-ubootmod is not set/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-ubootmod=y/' .config
-
-          # 3. 从 seed.config 中读取 CONFIG_PACKAGE_* 并追加到 .config
+          # 如果需要额外追加 seed.config 中的包（以防配置文件未包含）
           grep '^CONFIG_PACKAGE_' seed.config >> .config
 
-          # 4. 特别启用 OAF 和 TurboACC（确保依赖完整）
-          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-turboacc-mtk=y" >> .config
-          echo "CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn=y" >> .config
+          # 运行 olddefconfig 自动解决依赖
+          make olddefconfig
 
-          # 5. 关闭可能导致问题的 CONFIG_SHADOW_PASSWORDS
-          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
-          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-
-          # 6. 运行 oldconfig 以解决依赖关系（自动选择默认值）
-          yes "" | make oldconfig
-
-          # 7. 设备校验
+          # 设备校验
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
+            echo "当前 .config 中的 TARGET_DEVICE 相关行："
+            grep "CONFIG_TARGET" .config | grep -v "^#" || true
             exit 1
           fi
-          echo "✅ 配置已生成并加载，设备: AX3000T‑ubootmod"
+          echo "✅ 配置已加载，设备: AX3000T‑ubootmod"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 编译前上传配置（用于调试）
@@ -124,7 +112,7 @@ jobs:
             ImmortalWrt/feeds.conf.default
             ImmortalWrt/.config
 
-      # ========== 编译时强制版本号 ==========
+      # ========== 编译时强制版本号为 24.10.6 ==========
       - name: 多线程编译
         if: ${{inputs.multithreading == true}}
         working-directory: ImmortalWrt
@@ -151,6 +139,7 @@ jobs:
           name: ImmortalWrt_mt798x_24.10.6_AX3000T
           path: ImmortalWrt/bin/targets
 
+  # ================= SSH 调试任务 =================
   build-ssh:
     if: ${{inputs.ssh == true}}
     name: 🚀 编译 (Build) - SSH
@@ -207,7 +196,7 @@ jobs:
           echo "✅ quickstart 全部依赖链已拉取"
 
       - name: 复制自定义配置文件
-        run: cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
+        run: cp -f feeds.conf.default diy.sh seed.config ax3000t-v6.6.config ImmortalWrt/
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -219,25 +208,20 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      - name: 生成兼容的 .config 并添加自定义包
+      - name: 加载 AX3000T 配置
         working-directory: ImmortalWrt
         run: |
-          make defconfig
-          sed -i 's/^# CONFIG_TARGET_mediatek is not set/CONFIG_TARGET_mediatek=y/' .config
-          sed -i 's/^# CONFIG_TARGET_mediatek_filogic is not set/CONFIG_TARGET_mediatek_filogic=y/' .config
-          sed -i 's/^# CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-ubootmod is not set/CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-ubootmod=y/' .config
+          rm -f .config
+          cp ax3000t-v6.6.config .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config
-          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-turboacc-mtk=y" >> .config
-          echo "CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn=y" >> .config
-          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
-          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-          yes "" | make oldconfig
+          make olddefconfig
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
             echo "❌ 错误：设备类型未正确选中！"
+            echo "当前 .config 中的 TARGET_DEVICE 相关行："
+            grep "CONFIG_TARGET" .config | grep -v "^#" || true
             exit 1
           fi
-          echo "✅ 配置已生成并加载"
+          echo "✅ 配置已加载"
 
       - name: 开启 SSH 服务
         uses: lhotari/action-upterm@v1
