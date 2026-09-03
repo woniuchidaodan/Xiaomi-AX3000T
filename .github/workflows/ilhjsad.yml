@@ -8,7 +8,7 @@ on:
         type: boolean
         default: true
       ssh:
-        description: '开启 Web 终端调试 (Enable web terminal debug)'
+        description: '开启 SSH 调试模式 (Enable SSH debug)'
         type: boolean
         default: false
 
@@ -86,10 +86,10 @@ jobs:
         working-directory: ImmortalWrt
         run: |
           if [ -f ../ax3000t-manual.config ]; then
-            echo "✅ 使用手动生成的配置 ax3000t-manual.config"
+            echo "✅ 使用手动生成的配置"
             cp ../ax3000t-manual.config .config
           else
-            echo "⚠️ 未找到手动配置，使用自动生成"
+            echo "⚠️ 使用自动生成配置"
             make defconfig
             cat > mini.config << EOF
             CONFIG_TARGET_mediatek=y
@@ -103,7 +103,7 @@ jobs:
           fi
 
           if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 错误：设备类型未正确选中！"
+            echo "❌ 设备未选中"
             grep "CONFIG_TARGET_DEVICE" .config || true
             exit 1
           fi
@@ -132,11 +132,11 @@ jobs:
           name: ImmortalWrt_mt798x_24.10.6_AX3000T
           path: ImmortalWrt/bin/targets
 
-  # ================= Web 终端调试任务 =================
+  # ================= SSH 调试任务（tmate） =================
   build-ssh:
     if: ${{inputs.ssh == true}}
     runs-on: ubuntu-22.04
-    name: 🚀 Web 终端调试模式
+    name: 🔧 SSH 调试模式
     steps:
       - name: 下载编译所需的依赖
         run: |
@@ -201,9 +201,11 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 启动 Web 终端（无需公钥） ==========
-      - name: 开启 Web 终端
-        uses: P3TERX/debugger-action@v1
+      # ========== SSH 连接（tmate） ==========
+      - name: 开启 SSH 连接（tmate）
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
 
       # ========== 用户操作完成后自动编译 ==========
       - name: 检查配置是否已生成
@@ -244,7 +246,8 @@ jobs:
         run: |
           echo "========================================="
           echo "⚠️ 未检测到 ax3000t-manual.config"
-          echo "请在 Web 终端中执行："
+          echo ""
+          echo "请在 SSH 中执行："
           echo ""
           echo "  cd ImmortalWrt"
           echo "  make menuconfig"
