@@ -14,15 +14,15 @@ EOT
 chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
 
 # ========== distfeeds.conf（默认：dl.openwrt.ai 第三方源）==========
-mkdir -p package/base-files/files/etc/opkg
-cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
-src/gz openwrt_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
-src/gz openwrt_small_flash https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/small_flash
-src/gz openwrt_base https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/base
-src/gz openwrt_luci https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/luci
-src/gz openwrt_packages https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/packages
-src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/routing
-EOF
+# mkdir -p package/base-files/files/etc/opkg
+# cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
+# src/gz openwrt_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
+# src/gz openwrt_small_flash https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/small_flash
+# src/gz openwrt_base https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/base
+# src/gz openwrt_luci https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/luci
+# src/gz openwrt_packages https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/packages
+# src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/routing
+# EOF
 
 # ========== 吉林大学镜像站（已注释，按需启用）==========
 # mkdir -p package/base-files/files/etc/opkg
