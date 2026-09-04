@@ -108,16 +108,18 @@ jobs:
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
 
-    # ========== 加载 ax3000t-v6.6.config ==========
+    # ========== 加载 ax3000t-v6.6.config（修正路径） ==========
     - name: 加载配置文件
       working-directory: openwrt
       run: |
-        if [ -f ../ax3000t-v6.6.config ]; then
+        CONFIG_FILE="$GITHUB_WORKSPACE/ax3000t-v6.6.config"
+        if [ -f "$CONFIG_FILE" ]; then
           echo "✅ 使用配置文件 ax3000t-v6.6.config"
-          cp ../ax3000t-v6.6.config .config
+          cp "$CONFIG_FILE" .config
         else
           echo "❌ 错误：未找到 ax3000t-v6.6.config"
-          echo "请确保仓库根目录存在此配置文件"
+          echo "当前路径：$GITHUB_WORKSPACE"
+          ls -la "$GITHUB_WORKSPACE" || true
           exit 1
         fi
         make defconfig
@@ -145,7 +147,7 @@ jobs:
         echo "  cd openwrt"
         echo "  make menuconfig"
         echo "  make defconfig"
-        echo "  cp .config ../ax3000t-v6.6.config"
+        echo "  cp .config $GITHUB_WORKSPACE/ax3000t-v6.6.config"
         echo "  然后提交此文件到仓库"
         echo "========================================="
 
