@@ -1,4 +1,4 @@
-name: 🚀 编译 immortalwrt for AX3000T (SSH 调试版)
+name: 🚀 编译 immortalwrt for AX3000T
 
 on:
   workflow_dispatch:
@@ -56,7 +56,7 @@ jobs:
           ref: openwrt-24.10-6.6
           path: openWRT
 
-      # ========== 3. 复制自定义文件 ==========
+      # ========== 3. 复制自定义文件（仅非 SSH 模式） ==========
       - name: 复制当前仓库的自定义文件到 openWRT 目录
         run: |
           cp -f diy.sh feeds.conf.default seed.config openWRT/ 2>/dev/null || true
@@ -137,30 +137,22 @@ jobs:
             exit 1
           fi
 
-      # ========== 7. SSH 连接（tmate） ==========
+      # ========== 7. SSH 连接（tmate） - SSH 模式下不加载任何配置 ==========
       - name: 使用ssh连接编译环境（限时15分钟，输入 `touch /tmp/keepalive` 保活）
         if: ${{inputs.ssh == true}}
         uses: mxschmitt/action-tmate@v3
         with:
           limit-access-to-actor: true
 
-      - name: 启用ssh生成了.config后在编译前上传配置
-        if: ${{inputs.ssh == true}}
-        uses: actions/upload-artifact@v4
-        with:
-          name: config-before-build
-          path: |
-            openWRT/.config
-            openWRT/feeds.conf.default
-          include-hidden-files: true
-
-      - name: SSH 模式提示（请手动配置）
+      - name: SSH 模式提示（请手动配置，不加载仓库配置）
         if: ${{inputs.ssh == true}}
         run: |
           echo "========================================="
           echo "🔧 SSH 已开启 (tmate)"
           echo ""
-          echo "当前没有加载任何配置，请手动配置："
+          echo "⚠️ 注意：SSH 模式下不会加载任何仓库配置文件"
+          echo ""
+          echo "请手动配置："
           echo "  cd openWRT"
           echo "  make menuconfig"
           echo "  # 选择 Target System → MediaTek"
@@ -170,7 +162,7 @@ jobs:
           echo "  make defconfig"
           echo "  cp .config $GITHUB_WORKSPACE/ax3000t-manual.config"
           echo ""
-          echo "然后退出 SSH，重新触发工作流（不勾选 ssh）即可自动编译"
+          echo "然后退出 SSH，工作流会自动使用该配置编译"
           echo "========================================="
 
       # ========== 8. SSH 模式下检测手动配置并编译 ==========
@@ -189,7 +181,14 @@ jobs:
             fi
           else
             echo "⚠️ 未检测到手动配置，跳过编译"
-            echo "请在 SSH 中执行上述步骤生成配置后重新触发工作流"
+            echo ""
+            echo "请在 SSH 中执行以下步骤："
+            echo "  cd openWRT"
+            echo "  make menuconfig"
+            echo "  make defconfig"
+            echo "  cp .config $GITHUB_WORKSPACE/ax3000t-manual.config"
+            echo ""
+            echo "然后重新触发工作流（不勾选 ssh）即可自动编译"
           fi
 
       # ========== 9. 非 SSH 模式的编译步骤 ==========
