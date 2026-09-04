@@ -1,277 +1,227 @@
-name: 🚀 编译 (Build) - ImmortalWrt (闭源驱动) for AX3000T
+name: 🚀 编译 immortalwrt for AX3000T (SSH 调试版)
 
 on:
   workflow_dispatch:
     inputs:
       multithreading:
-        description: '开启多线程编译 (Enable multithreading build)'
+        description: "开启多线程编译 (Enable multithreading build)"
         type: boolean
         default: true
       ssh:
-        description: '使用 ssh 连接到编译环境 (Connect to the build environment using ssh)'
+        description: "使用 ssh 连接到编译环境 (Connect to the build environment using ssh)"
+        type: boolean
+        default: false
+      isFiles:
+        description: "使用 files 大法 (Whether to upload the etc files)"
         type: boolean
         default: false
 
 jobs:
   build:
-    if: ${{inputs.ssh == false}}
     runs-on: ubuntu-22.04
     name: 🚀 编译 (Build)
+
     steps:
+      # ========== 1. 安装依赖 ==========
       - name: 下载编译所需的依赖
         run: |
-          sudo apt update
-          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
+          export TMPDIR=$RUNNER_TEMP
+          sudo mkdir -p $TMPDIR
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /var/cache/apt/*
+          sudo apt-get update -y
 
-      - name: 克隆当前仓库
-        uses: actions/checkout@v5
+          sudo apt-get install -y --no-install-recommends \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext \
+            gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 \
+            libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
+            libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool libyaml-dev libz-dev \
+            lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 \
+            python3-pip python3-ply python3-docutils python3-pyelftools qemu-utils re2c rsync scons \
+            squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
 
-      # ========== 修改：使用 padavanonly 闭源驱动仓库 ==========
-      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库
-        uses: actions/checkout@v5
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+
+      # ========== 2. 克隆源码 ==========
+      - name: 克隆当前仓库 (含自定义文件)
+        uses: actions/checkout@v4
+
+      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 源码
+        uses: actions/checkout@v4
         with:
-          repository: 'padavanonly/immortalwrt-mt798x-6.6'
-          ref: 'openwrt-24.10-6.6'
-          path: ImmortalWrt
-          fetch-depth: 0
+          repository: padavanonly/immortalwrt-mt798x-6.6
+          ref: openwrt-24.10-6.6
+          path: openWRT
 
-      - name: 校验 git 状态
-        working-directory: ImmortalWrt
+      # ========== 3. 复制自定义文件 ==========
+      - name: 复制当前仓库的自定义文件到 openWRT 目录
         run: |
-          echo "==== git log ===="
-          git log -1 --oneline
-          echo "==== 当前分支 ===="
-          git branch --show-current
+          cp -f diy.sh feeds.conf.default seed.config openWRT/ 2>/dev/null || true
 
-      - name: 手动克隆 UA3F 源码
-        working-directory: ImmortalWrt
-        run: |
-          git clone https://github.com/SunBK201/UA3F.git package/UA3F
+      - name: 如果选择了 files 大法，复制 files 目录
+        if: ${{inputs.isFiles == true}}
+        run: cp -r files openWRT/files 2>/dev/null || true
+
+      # ========== 4. 第三方插件克隆 ==========
+      - name: 克隆 UA3F 源码
+        working-directory: openWRT
+        run: git clone https://github.com/SunBK201/UA3F.git package/UA3F 2>/dev/null || true
 
       - name: 克隆 OpenAppFilter (OAF) 源码
-        working-directory: ImmortalWrt
+        working-directory: openWRT
+        run: git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter 2>/dev/null || true
+
+      - name: 从 kenzok8 拉取 quickstart 及其依赖
+        working-directory: openWRT
         run: |
-          git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8 || true
+          if [ -d temp_kenzok8 ]; then
+            cd temp_kenzok8
+            git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd || true
+            cd ..
+            mv temp_kenzok8/quickstart package/ 2>/dev/null || true
+            mv temp_kenzok8/luci-app-quickstart package/ 2>/dev/null || true
+            mv temp_kenzok8/luci-app-store package/ 2>/dev/null || true
+            mv temp_kenzok8/luci-lib-taskd package/ 2>/dev/null || true
+            mv temp_kenzok8/luci-lib-xterm package/ 2>/dev/null || true
+            mv temp_kenzok8/taskd package/ 2>/dev/null || true
+            rm -rf temp_kenzok8
+            echo "✅ quickstart 依赖链已拉取"
+          fi
 
-      - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
-        working-directory: ImmortalWrt
-        run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
-          cd temp_kenzok8
-          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
-          cd ..
-          mv temp_kenzok8/quickstart package/
-          mv temp_kenzok8/luci-app-quickstart package/
-          mv temp_kenzok8/luci-app-store package/
-          mv temp_kenzok8/luci-lib-taskd package/
-          mv temp_kenzok8/luci-lib-xterm package/
-          mv temp_kenzok8/taskd package/
-          rm -rf temp_kenzok8
-          echo "✅ quickstart 全部依赖链已拉取"
-
-      # ========== 修改：复制 mt7981-ax3000.config 作为配置文件 ==========
-      - name: 复制自定义配置文件
-        run: cp -f feeds.conf.default diy.sh seed.config mt7981-ax3000.config ImmortalWrt/
-
+      # ========== 5. 运行 DIY 脚本 ==========
       - name: 运行 diy.sh
-        working-directory: ImmortalWrt
+        working-directory: openWRT
         run: |
-          chmod +x diy.sh
-          ./diy.sh
+          chmod +x diy.sh 2>/dev/null || true
+          ./diy.sh 2>/dev/null || true
 
       - name: 更新并下载 feeds
-        working-directory: ImmortalWrt
-        run: ./scripts/feeds update -a && ./scripts/feeds install -a
-
-      # ========== 修改：使用 defconfig 代替 oldconfig ==========
-      - name: 加载 AX3000T 完整配置
-        working-directory: ImmortalWrt
+        working-directory: openWRT
         run: |
-          rm -f .config
-          cp mt7981-ax3000.config .config
-          # 追加 seed.config 中的包（过滤掉 kmod-*）
-          grep '^CONFIG_PACKAGE_' ../seed.config | grep -v 'kmod-' >> .config || true
-          # 使用 defconfig 自动解决依赖
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      # ========== 6. 加载配置（仅非 SSH 模式） ==========
+      - name: 加载配置文件（非 SSH 模式）
+        if: ${{inputs.ssh == false}}
+        working-directory: openWRT
+        run: |
+          # 优先使用手动生成的配置（如果有）
+          if [ -f "$GITHUB_WORKSPACE/ax3000t-manual.config" ]; then
+            echo "✅ 使用手动生成的配置 ax3000t-manual.config"
+            cp "$GITHUB_WORKSPACE/ax3000t-manual.config" .config
+          elif [ -f "$GITHUB_WORKSPACE/mt7981-ax3000.config" ]; then
+            echo "✅ 使用预置配置 mt7981-ax3000.config"
+            cp "$GITHUB_WORKSPACE/mt7981-ax3000.config" .config
+          else
+            echo "⚠️ 未找到配置文件，自动生成"
+            make defconfig
+            sed -i 's/^# CONFIG_TARGET_mediatek is not set/CONFIG_TARGET_mediatek=y/' .config
+            sed -i 's/^# CONFIG_TARGET_mediatek_filogic is not set/CONFIG_TARGET_mediatek_filogic=y/' .config
+            echo 'CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t-mtkuboot=y' >> .config
+            make defconfig
+          fi
+
           make defconfig
-          # 设备校验
-          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 错误：设备类型未正确选中！"
+
+          if grep -q "xiaomi_mi-router-ax3000t" .config; then
+            echo "✅ 设备已正确选中"
+            grep "CONFIG_TARGET_DEVICE" .config || true
+          else
+            echo "⚠️ 设备未选中，请检查配置"
             grep "CONFIG_TARGET_DEVICE" .config || true
             exit 1
           fi
-          echo "✅ 配置已加载"
-          grep "CONFIG_TARGET_DEVICE" .config || true
 
-      - name: 编译前上传配置
-        uses: actions/upload-artifact@v6
+      # ========== 7. SSH 连接（tmate） ==========
+      - name: 使用ssh连接编译环境（限时15分钟，输入 `touch /tmp/keepalive` 保活）
+        if: ${{inputs.ssh == true}}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+
+      - name: 启用ssh生成了.config后在编译前上传配置
+        if: ${{inputs.ssh == true}}
+        uses: actions/upload-artifact@v4
         with:
           name: config-before-build
           path: |
-            ImmortalWrt/feeds.conf.default
-            ImmortalWrt/.config
+            openWRT/.config
+            openWRT/feeds.conf.default
+          include-hidden-files: true
 
-      # ========== 修改：编译时伪造版本号 ==========
-      - name: 多线程编译
-        if: ${{inputs.multithreading == true}}
-        working-directory: ImmortalWrt
-        run: make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
-
-      - name: 单线程编译
-        if: ${{inputs.multithreading == false}}
-        working-directory: ImmortalWrt
-        run: make VERSION_NUMBER="24.10.6" -j1 V=s
-
-      # ========== 修改：伪造版本号，不从 git describe 获取 ==========
-      - name: 编译后校验并上传
-        working-directory: ImmortalWrt
-        run: |
-          FW_VERSION="24.10.6"
-          echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
-          echo "✅ 设置版本号为: $FW_VERSION"
-          echo "==== openwrt_release ===="
-          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
-          echo "==== 固件列表 ===="
-          ls -la bin/targets/*/*/*.bin 2>/dev/null || echo "未找到固件"
-
-      - name: 上传编译结果
-        uses: actions/upload-artifact@v6
-        with:
-          name: ImmortalWrt_${{ env.FW_VERSION }}_AX3000T
-          path: ImmortalWrt/bin/targets
-
-  # ================= SSH 调试任务 =================
-  build-ssh:
-    if: ${{inputs.ssh == true}}
-    name: 🚀 编译 (Build) - SSH
-    runs-on: ubuntu-22.04
-    steps:
-      - name: 下载编译所需的依赖
-        run: |
-          sudo apt update
-          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
-
-      - name: 克隆当前仓库
-        uses: actions/checkout@v5
-
-      - name: 克隆 padavanonly/immortalwrt-mt798x-6.6 仓库
-        uses: actions/checkout@v5
-        with:
-          repository: 'padavanonly/immortalwrt-mt798x-6.6'
-          ref: 'openwrt-24.10-6.6'
-          path: ImmortalWrt
-          fetch-depth: 0
-
-      - name: 校验 git 状态
-        working-directory: ImmortalWrt
-        run: |
-          echo "==== git log ===="
-          git log -1 --oneline
-          echo "==== 当前分支 ===="
-          git branch --show-current
-
-      - name: 手动克隆 UA3F 源码
-        working-directory: ImmortalWrt
-        run: |
-          git clone https://github.com/SunBK201/UA3F.git package/UA3F
-
-      - name: 克隆 OpenAppFilter (OAF) 源码
-        working-directory: ImmortalWrt
-        run: |
-          git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
-
-      - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
-        working-directory: ImmortalWrt
-        run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
-          cd temp_kenzok8
-          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
-          cd ..
-          mv temp_kenzok8/quickstart package/
-          mv temp_kenzok8/luci-app-quickstart package/
-          mv temp_kenzok8/luci-app-store package/
-          mv temp_kenzok8/luci-lib-taskd package/
-          mv temp_kenzok8/luci-lib-xterm package/
-          mv temp_kenzok8/taskd package/
-          rm -rf temp_kenzok8
-          echo "✅ quickstart 全部依赖链已拉取"
-
-      - name: 复制自定义配置文件
-        run: cp -f feeds.conf.default diy.sh seed.config mt7981-ax3000.config ImmortalWrt/
-
-      - name: 运行 diy.sh
-        working-directory: ImmortalWrt
-        run: |
-          chmod +x diy.sh
-          ./diy.sh
-
-      - name: 更新并下载 feeds
-        working-directory: ImmortalWrt
-        run: ./scripts/feeds update -a && ./scripts/feeds install -a
-
-      - name: 加载 AX3000T 完整配置
-        working-directory: ImmortalWrt
-        run: |
-          rm -f .config
-          cp mt7981-ax3000.config .config
-          grep '^CONFIG_PACKAGE_' ../seed.config | grep -v 'kmod-' >> .config || true
-          make defconfig
-          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
-            echo "❌ 错误：设备类型未正确选中！"
-            grep "CONFIG_TARGET_DEVICE" .config || true
-            exit 1
-          fi
-          echo "✅ 配置已加载"
-          grep "CONFIG_TARGET_DEVICE" .config || true
-
-      - name: 开启 SSH 服务（upterm）
-        uses: lhotari/action-upterm@v1
-        with:
-          wait-timeout-minutes: 60
-
-      - name: SSH 模式提示
+      - name: SSH 模式提示（请手动配置）
+        if: ${{inputs.ssh == true}}
         run: |
           echo "========================================="
-          echo "🔧 SSH/Web 终端已开启"
+          echo "🔧 SSH 已开启 (tmate)"
           echo ""
-          echo "如需修改配置："
-          echo "  cd ImmortalWrt"
+          echo "当前没有加载任何配置，请手动配置："
+          echo "  cd openWRT"
           echo "  make menuconfig"
+          echo "  # 选择 Target System → MediaTek"
+          echo "  # 选择 Subtarget → Filogic 8x0 (MT798x)"
+          echo "  # 选择 Target Profile → Xiaomi Mi Router AX3000T (MTK U-Boot layout)"
+          echo "  # 保存退出"
           echo "  make defconfig"
-          echo "  cp .config $GITHUB_WORKSPACE/mt7981-ax3000.config"
+          echo "  cp .config $GITHUB_WORKSPACE/ax3000t-manual.config"
           echo ""
-          echo "如需直接编译："
-          echo "  make VERSION_NUMBER=\"24.10.6\" -j\$(nproc) V=s"
+          echo "然后退出 SSH，重新触发工作流（不勾选 ssh）即可自动编译"
           echo "========================================="
 
-      - name: 编译前上传配置
-        uses: actions/upload-artifact@v6
-        with:
-          name: config-before-build
-          path: |
-            ImmortalWrt/feeds.conf.default
-            ImmortalWrt/.config
+      # ========== 8. SSH 模式下检测手动配置并编译 ==========
+      - name: SSH 模式 - 检查手动配置并编译
+        if: ${{inputs.ssh == true}}
+        working-directory: openWRT
+        run: |
+          if [ -f "$GITHUB_WORKSPACE/ax3000t-manual.config" ]; then
+            echo "✅ 检测到手动生成的配置 ax3000t-manual.config，开始编译"
+            cp "$GITHUB_WORKSPACE/ax3000t-manual.config" .config
+            make defconfig
+            if [ "${{inputs.multithreading}}" == "true" ]; then
+              make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
+            else
+              make VERSION_NUMBER="24.10.6" -j1 V=s
+            fi
+          else
+            echo "⚠️ 未检测到手动配置，跳过编译"
+            echo "请在 SSH 中执行上述步骤生成配置后重新触发工作流"
+          fi
 
-      - name: 多线程编译
-        if: ${{inputs.multithreading == true}}
-        working-directory: ImmortalWrt
+      # ========== 9. 非 SSH 模式的编译步骤 ==========
+      - name: 下载软件包（非 SSH 模式）
+        if: ${{inputs.ssh == false}}
+        working-directory: openWRT
+        run: |
+          make download -j8
+          find dl -size -1024c -exec ls -l {} \;
+          find dl -size -1024c -exec rm -f {} \;
+
+      - name: 多线程编译（非 SSH 模式）
+        if: ${{inputs.multithreading == true && inputs.ssh == false}}
+        working-directory: openWRT
         run: make VERSION_NUMBER="24.10.6" -j$(nproc) V=s
 
-      - name: 单线程编译
-        if: ${{inputs.multithreading == false}}
-        working-directory: ImmortalWrt
+      - name: 单线程编译（非 SSH 模式）
+        if: ${{inputs.multithreading == false && inputs.ssh == false}}
+        working-directory: openWRT
         run: make VERSION_NUMBER="24.10.6" -j1 V=s
 
-      - name: 编译后校验并上传
-        working-directory: ImmortalWrt
+      # ========== 10. 上传产物（所有成功编译的情况） ==========
+      - name: 整理固件文件
+        if: success()
         run: |
-          FW_VERSION="24.10.6"
-          echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
-          echo "✅ 设置版本号为: $FW_VERSION"
-          echo "==== openwrt_release ===="
-          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
+          cd openWRT/bin/targets/*/* 2>/dev/null || exit 0
+          rm -rf packages *.buildinfo *.manifest *.json *bl2.bin 2>/dev/null || true
+          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
 
-      - name: 上传编译结果
-        uses: actions/upload-artifact@v6
+      - name: 上传编译结果到 Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
-          name: ImmortalWrt_${{ env.FW_VERSION }}_AX3000T
-          path: ImmortalWrt/bin/targets
+          name: ImmortalWrt_AX3000T
+          path: openWRT/bin/targets
