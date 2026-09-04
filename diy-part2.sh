@@ -10,16 +10,7 @@ exit 0
 EOT
 chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
 
-# 设置软件源
-mkdir -p package/base-files/files/etc/opkg
-cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
-src/gz openwrt_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
-src/gz openwrt_base https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/base
-src/gz openwrt_luci https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/luci
-src/gz openwrt_packages https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/packages
-EOF
-
-# 设置默认 WiFi
+# 设置默认 WiFi（双频合一）
 mkdir -p package/base-files/files/etc/config
 cat > package/base-files/files/etc/config/wireless << 'EOF'
 config wifi-device 'radio0'
