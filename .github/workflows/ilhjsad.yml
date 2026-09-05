@@ -26,7 +26,7 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      # ========== 核心改动：切换到 padavanonly 闭源驱动仓库 ==========
+      # ========== 克隆 padavanonly 闭源驱动仓库 ==========
       - name: 克隆 padavanonly 闭源驱动仓库
         uses: actions/checkout@v5
         with:
@@ -35,29 +35,25 @@ jobs:
           path: ImmortalWrt
           fetch-depth: 0
 
-      - name: 校验 git 状态
+      # ========== 获取 commit 信息（不再依赖 git describe） ==========
+      - name: 获取 commit 信息
         working-directory: ImmortalWrt
         run: |
-          echo "==== git describe ===="
-          git describe
-          echo "==== git status ===="
-          git status
           echo "==== 当前 commit ===="
           git log -1 --oneline
+          echo "==== commit hash ===="
+          git rev-parse HEAD
 
-      # ========== 保留：手动克隆 UA3F 源码 ==========
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
-      # ========== 保留：克隆 OpenAppFilter (OAF) 源码 ==========
       - name: 克隆 OpenAppFilter (OAF) 源码
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
-      # ========== 保留：从 kenzok8 源拉取 quickstart 及其全部依赖 ==========
       - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
         run: |
@@ -74,14 +70,10 @@ jobs:
           rm -rf temp_kenzok8
           echo "✅ quickstart 全部依赖链已拉取"
 
-      # ========== 复制配置文件（改用 Config/ 目录下的闭源配置） ==========
       - name: 复制自定义配置文件
         run: cp -f feeds.conf.default diy.sh ImmortalWrt/
 
-      # ========== 注意：不再需要 seed.config 和 ax3000t.config ==========
-      # 闭源驱动配置已整合到 Config/MT7981.txt 和 Config/GENERAL.txt
-
-      - name: 运行 diy.sh（保留你的定制）
+      - name: 运行 diy.sh
         working-directory: ImmortalWrt
         run: |
           chmod +x diy.sh
@@ -96,7 +88,6 @@ jobs:
         working-directory: ImmortalWrt
         run: |
           rm -f .config
-          # 合并闭源设备配置 + 通用配置（含闭源驱动选项）
           cat $GITHUB_WORKSPACE/Config/MT7981.txt >> .config
           cat $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
 
@@ -140,17 +131,12 @@ jobs:
         working-directory: ImmortalWrt
         run: make -j1 V=s
 
-      # ========== 编译后版本提取（使用固定的伪造版本） ==========
-      - name: 提取版本信息
-        working-directory: ImmortalWrt
+      # ========== 设置版本号环境变量（伪造版本） ==========
+      - name: 设置版本号环境变量
         run: |
-          # 直接使用我们写入的伪造版本号
           FW_VERSION="24.10.6"
           echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
           echo "✅ 使用伪造版本号: $FW_VERSION"
-
-          echo "==== openwrt_release (验证) ===="
-          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
 
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
@@ -180,15 +166,13 @@ jobs:
           path: ImmortalWrt
           fetch-depth: 0
 
-      - name: 校验 git 状态
+      - name: 获取 commit 信息
         working-directory: ImmortalWrt
         run: |
-          echo "==== git describe ===="
-          git describe
-          echo "==== git status ===="
-          git status
           echo "==== 当前 commit ===="
           git log -1 --oneline
+          echo "==== commit hash ===="
+          git rev-parse HEAD
 
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
@@ -277,8 +261,7 @@ jobs:
         working-directory: ImmortalWrt
         run: make -j1 V=s
 
-      - name: 提取版本信息
-        working-directory: ImmortalWrt
+      - name: 设置版本号环境变量
         run: |
           FW_VERSION="24.10.6"
           echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
