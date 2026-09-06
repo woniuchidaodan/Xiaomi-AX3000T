@@ -1,4 +1,4 @@
-name: 🚀 编译 (Build) - 闭源驱动 for AX3000T
+name: 🚀 编译 (Build) - ImmortalWrt for WR30U
 
 on:
   workflow_dispatch:
@@ -26,34 +26,38 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      # ========== 克隆 padavanonly 闭源驱动仓库 ==========
-      - name: 克隆 padavanonly 闭源驱动仓库
+      # ========== 核心改动：直接使用 Tag，不是分支 ==========
+      - name: 克隆 ImmortalWrt 官方仓库
         uses: actions/checkout@v5
         with:
-          repository: 'padavanonly/immortalwrt-mt798x-6.6'
-          ref: 'openwrt-24.10-6.6'
+          repository: 'immortalwrt/immortalwrt'
+          ref: 'v24.10.6'
           path: ImmortalWrt
           fetch-depth: 0
 
-      # ========== 获取 commit 信息（不再依赖 git describe） ==========
-      - name: 获取 commit 信息
+      # ========== 校验 git 状态 ==========
+      - name: 校验 git 版本标签
         working-directory: ImmortalWrt
         run: |
+          echo "==== git describe ===="
+          git describe
+          echo "==== git status ===="
+          git status
           echo "==== 当前 commit ===="
           git log -1 --oneline
-          echo "==== commit hash ===="
-          git rev-parse HEAD
 
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
+      # ========== 新增：克隆 OpenAppFilter (OAF) 源码 ==========
       - name: 克隆 OpenAppFilter (OAF) 源码
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
+      # ========== 从 kenzok8 源补全 quickstart 全部依赖链 ==========
       - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
         run: |
@@ -71,7 +75,9 @@ jobs:
           echo "✅ quickstart 全部依赖链已拉取"
 
       - name: 复制自定义配置文件
-        run: cp -f feeds.conf.default diy.sh ImmortalWrt/
+        run: cp -f feeds.conf.default diy.sh seed.config wr30u.config ImmortalWrt/
+
+      # ========== 注意：feeds.conf.default 已默认指向 immortalwrt/luci，无需修改 ==========
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -83,34 +89,35 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 加载配置：使用 Config/ 目录下的闭源配置文件 ==========
-      - name: 加载 AX3000T 完整配置（闭源驱动）
+      # ========== 加载配置：使用 oldconfig 保护全局配置 ==========
+      # 只关闭 CONFIG_SHADOW_PASSWORDS，不碰 shadow-utils 和 smartmontools
+      - name: 加载 WR30U 完整配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
-          cat $GITHUB_WORKSPACE/Config/MT7981.txt >> .config
-          cat $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
-
-          # ========== 写入伪造版本号（24.10.6） ==========
-          echo 'CONFIG_VERSION_NUMBER="24.10.6"' >> .config
-          echo 'CONFIG_VERSION_CODE="'$(date +%Y%m%d)'"' >> .config
-          echo 'CONFIG_VERSION_REPO="https://github.com/padavanonly/immortalwrt-mt798x-6.6"' >> .config
-          echo 'CONFIG_VERSION_DIST="ImmortalWrt"' >> .config
-          echo 'CONFIG_VERSION_DIST_NAME="ImmortalWrt"' >> .config
-          echo 'CONFIG_VERSION_MANUFACTURER="ImmortalWrt"' >> .config
-          echo 'CONFIG_VERSION_BUG_URL="https://github.com/immortalwrt/immortalwrt/issues"' >> .config
-          echo 'CONFIG_VERSION_SUPPORT_URL="https://forum.immortalwrt.org/"' >> .config
-          echo "✅ 已写入伪造版本: 24.10.6"
-
+          cp wr30u.config .config
+          grep '^CONFIG_PACKAGE_' seed.config >> .config
+          
+          # ----- 仅关闭 CONFIG_SHADOW_PASSWORDS（不影响 shadow-utils 包编译） -----
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+          
+          # ----- 开启 OAF 编译选项 -----
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          
           # ----- 使用 oldconfig 保护全局配置 -----
           yes "" | make oldconfig
-
-          # ----- 设备校验 -----
-          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
+          
+          # ----- 再次确认 CONFIG_SHADOW_PASSWORDS 保持关闭 -----
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+          
+          # ----- 设备校验（改为 WR30U） -----
+          if ! grep -q "xiaomi_mi-router-wr30u-ubootmod" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
           fi
-          echo "✅ 配置已加载：AX3000T‑ubootmod (闭源驱动)"
+          echo "✅ 配置已加载：WR30U‑ubootmod"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 编译前上传配置
@@ -131,20 +138,29 @@ jobs:
         working-directory: ImmortalWrt
         run: make -j1 V=s
 
-      # ========== 设置版本号环境变量（伪造版本） ==========
-      - name: 设置版本号环境变量
+      # ========== 编译后版本校验 & 提取版本号（从 git tag） ==========
+      - name: 编译后版本校验并提取版本信息
+        working-directory: ImmortalWrt
         run: |
-          FW_VERSION="24.10.6"
+          echo "==== git describe ===="
+          FW_TAG=$(git describe --tags)
+          echo "FW_TAG=$FW_TAG"
+          # 去除前缀 'v' 得到版本号，例如 v24.10.6 -> 24.10.6
+          FW_VERSION=${FW_TAG#v}
           echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
-          echo "✅ 使用伪造版本号: $FW_VERSION"
+          echo "✅ 提取版本号: $FW_VERSION"
+
+          echo "==== profiles.json version ===="
+          cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
+          echo "==== openwrt_release ===="
+          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
 
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_${{ env.FW_VERSION }}_AX3000T_CloseSource
+          name: ImmortalWrt_${{ env.FW_VERSION }}_WR30U
           path: ImmortalWrt/bin/targets
 
-  # ========== SSH 调试分支（同理修改） ==========
   build-ssh:
     if: ${{inputs.ssh == true}}
     name: 🚀 编译 (Build) - SSH
@@ -158,27 +174,30 @@ jobs:
       - name: 克隆当前仓库
         uses: actions/checkout@v5
 
-      - name: 克隆 padavanonly 闭源驱动仓库
+      - name: 克隆 ImmortalWrt 官方仓库
         uses: actions/checkout@v5
         with:
-          repository: 'padavanonly/immortalwrt-mt798x-6.6'
-          ref: 'openwrt-24.10-6.6'
+          repository: 'immortalwrt/immortalwrt'
+          ref: 'v24.10.6'
           path: ImmortalWrt
           fetch-depth: 0
 
-      - name: 获取 commit 信息
+      - name: 校验 git 版本标签
         working-directory: ImmortalWrt
         run: |
+          echo "==== git describe ===="
+          git describe
+          echo "==== git status ===="
+          git status
           echo "==== 当前 commit ===="
           git log -1 --oneline
-          echo "==== commit hash ===="
-          git rev-parse HEAD
 
       - name: 手动克隆 UA3F 源码
         working-directory: ImmortalWrt
         run: |
           git clone https://github.com/SunBK201/UA3F.git package/UA3F
 
+      # ========== 新增：克隆 OpenAppFilter (OAF) 源码 ==========
       - name: 克隆 OpenAppFilter (OAF) 源码
         working-directory: ImmortalWrt
         run: |
@@ -201,7 +220,9 @@ jobs:
           echo "✅ quickstart 全部依赖链已拉取"
 
       - name: 复制自定义配置文件
-        run: cp -f feeds.conf.default diy.sh ImmortalWrt/
+        run: cp -f feeds.conf.default diy.sh seed.config wr30u.config ImmortalWrt/
+
+      # ========== 注意：feeds.conf.default 已默认指向 immortalwrt/luci，无需修改 ==========
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -213,30 +234,34 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      - name: 加载 AX3000T 完整配置（闭源驱动）
+      - name: 加载 WR30U 完整配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
-          cat $GITHUB_WORKSPACE/Config/MT7981.txt >> .config
-          cat $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
-
-          echo 'CONFIG_VERSION_NUMBER="24.10.6"' >> .config
-          echo 'CONFIG_VERSION_CODE="'$(date +%Y%m%d)'"' >> .config
-          echo 'CONFIG_VERSION_REPO="https://github.com/padavanonly/immortalwrt-mt798x-6.6"' >> .config
-          echo 'CONFIG_VERSION_DIST="ImmortalWrt"' >> .config
-          echo 'CONFIG_VERSION_DIST_NAME="ImmortalWrt"' >> .config
-          echo 'CONFIG_VERSION_MANUFACTURER="ImmortalWrt"' >> .config
-          echo 'CONFIG_VERSION_BUG_URL="https://github.com/immortalwrt/immortalwrt/issues"' >> .config
-          echo 'CONFIG_VERSION_SUPPORT_URL="https://forum.immortalwrt.org/"' >> .config
-          echo "✅ 已写入伪造版本: 24.10.6"
-
+          cp wr30u.config .config
+          grep '^CONFIG_PACKAGE_' seed.config >> .config
+          
+          # ----- 仅关闭 CONFIG_SHADOW_PASSWORDS（不影响 shadow-utils 包编译） -----
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+          
+          # ----- 开启 OAF 编译选项 -----
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          
+          # ----- 使用 oldconfig 保护全局配置 -----
           yes "" | make oldconfig
-
-          if ! grep -q "xiaomi_mi-router-ax3000t" .config; then
+          
+          # ----- 再次确认 CONFIG_SHADOW_PASSWORDS 保持关闭 -----
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+          
+          # ----- 设备校验（改为 WR30U） -----
+          if ! grep -q "xiaomi_mi-router-wr30u-ubootmod" .config; then
             echo "❌ 错误：设备类型未正确选中！"
             exit 1
           fi
-          echo "✅ 配置已加载：AX3000T‑ubootmod (闭源驱动)"
+          echo "✅ 配置已加载：WR30U‑ubootmod"
+          grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 开启 SSH 服务
         uses: lhotari/action-upterm@v1
@@ -261,14 +286,24 @@ jobs:
         working-directory: ImmortalWrt
         run: make -j1 V=s
 
-      - name: 设置版本号环境变量
+      # ========== 编译后版本校验 & 提取版本号（从 git tag） ==========
+      - name: 编译后版本校验并提取版本信息
+        working-directory: ImmortalWrt
         run: |
-          FW_VERSION="24.10.6"
+          echo "==== git describe ===="
+          FW_TAG=$(git describe --tags)
+          echo "FW_TAG=$FW_TAG"
+          FW_VERSION=${FW_TAG#v}
           echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
-          echo "✅ 使用伪造版本号: $FW_VERSION"
+          echo "✅ 提取版本号: $FW_VERSION"
+
+          echo "==== profiles.json version ===="
+          cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
+          echo "==== openwrt_release ===="
+          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
 
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_${{ env.FW_VERSION }}_AX3000T_CloseSource
+          name: ImmortalWrt_${{ env.FW_VERSION }}_WR30U
           path: ImmortalWrt/bin/targets
