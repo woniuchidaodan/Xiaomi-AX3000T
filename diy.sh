@@ -1,7 +1,7 @@
 #!/bin/bash
 
 sed -i 's/192.168.1.1/192.168.5.1/g' package/base-files/files/bin/config_generate
-sed -i 's/ImmortalWrt/AX3000T/g' package/base-files/files/bin/config_generate
+sed -i 's/ImmortalWrt/WR30U/g' package/base-files/files/bin/config_generate
 
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-set-argon-theme << 'EOT'
@@ -33,8 +33,6 @@ chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
 # src/gz openwrt_routing http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/routing
 # src/gz openwrt_telephony http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/telephony
 # EOF
-
-
 
 # ========== 设置默认 WiFi 名称和密码（双频合一）==========
 mkdir -p package/base-files/files/etc/config
