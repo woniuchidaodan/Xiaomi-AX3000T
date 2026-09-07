@@ -1,0 +1,361 @@
+name: 🚀 编译 (Build) - ImmortalWrt
+
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: '选择目标设备 (Target Device)'
+        type: choice
+        options:
+          - AX3000T
+          - WR30U
+        default: AX3000T
+      multithreading:
+        description: '开启多线程编译 (Enable multithreading build)'
+        type: boolean
+        default: true
+      ssh:
+        description: '使用 ssh 连接到编译环境 (Connect to the build environment using ssh)'
+        type: boolean
+        default: false
+
+env:
+  DEVICE: ${{ github.event.inputs.device || 'AX3000T' }}
+
+jobs:
+  build:
+    if: ${{inputs.ssh == false}}
+    runs-on: ubuntu-22.04
+    name: 🚀 编译 (Build)
+    steps:
+      - name: 下载编译所需的依赖
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
+
+      - name: 克隆当前仓库
+        uses: actions/checkout@v5
+
+      - name: 克隆 ImmortalWrt 官方仓库
+        uses: actions/checkout@v5
+        with:
+          repository: 'immortalwrt/immortalwrt'
+          ref: 'v24.10.6'
+          path: ImmortalWrt
+          fetch-depth: 0
+
+      - name: 校验 git 版本标签
+        working-directory: ImmortalWrt
+        run: |
+          echo "==== git describe ===="
+          git describe
+          echo "==== git status ===="
+          git status
+          echo "==== 当前 commit ===="
+          git log -1 --oneline
+
+      # ========== UA3F ==========
+      - name: 手动克隆 UA3F 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/SunBK201/UA3F.git package/UA3F
+
+      # ========== OpenAppFilter (OAF) ==========
+      - name: 克隆 OpenAppFilter (OAF) 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
+
+      # ========== TurboACC MTK ==========
+      - name: 克隆 TurboACC MTK 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/padavanonly/immortalwrt-mt798x-6.6.git temp_turboacc
+          cd temp_turboacc
+          git sparse-checkout set package/mtk/applications/luci-app-turboacc-mtk
+          cd ..
+          mv temp_turboacc/package/mtk/applications/luci-app-turboacc-mtk package/
+          rm -rf temp_turboacc
+          echo "✅ luci-app-turboacc-mtk 源码已拉取"
+
+      # ========== quickstart 全家桶（从 kenzok8 源） ==========
+      - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
+        working-directory: ImmortalWrt
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
+          cd temp_kenzok8
+          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
+          cd ..
+          mv temp_kenzok8/quickstart package/
+          mv temp_kenzok8/luci-app-quickstart package/
+          mv temp_kenzok8/luci-app-store package/
+          mv temp_kenzok8/luci-lib-taskd package/
+          mv temp_kenzok8/luci-lib-xterm package/
+          mv temp_kenzok8/taskd package/
+          rm -rf temp_kenzok8
+          echo "✅ quickstart 全部依赖链已拉取"
+
+      - name: 复制自定义配置文件
+        run: cp -f feeds.conf.default diy.sh seed.config *.config ImmortalWrt/ 2>/dev/null || true
+
+      - name: 运行 diy.sh
+        working-directory: ImmortalWrt
+        run: |
+          chmod +x diy.sh
+          ./diy.sh
+
+      - name: 更新并下载 feeds
+        working-directory: ImmortalWrt
+        run: ./scripts/feeds update -a && ./scripts/feeds install -a
+
+      # ========== 根据选择的设备加载对应配置 ==========
+      - name: 加载设备配置
+        working-directory: ImmortalWrt
+        run: |
+          rm -f .config
+
+          # ----- 根据设备选择配置文件 -----
+          if [ "${{ env.DEVICE }}" = "WR30U" ]; then
+            CONFIG_FILE="wr30u.config"
+            DEVICE_ID="xiaomi_mi-router-wr30u-ubootmod"
+            DEVICE_NAME="WR30U"
+          else
+            CONFIG_FILE="ax3000t.config"
+            DEVICE_ID="xiaomi_mi-router-ax3000t"
+            DEVICE_NAME="AX3000T"
+          fi
+
+          echo "📦 使用配置文件: $CONFIG_FILE"
+          echo "📦 目标设备: $DEVICE_ID"
+
+          cp "$CONFIG_FILE" .config
+          grep '^CONFIG_PACKAGE_' seed.config >> .config 2>/dev/null || true
+
+          # ----- 关闭 CONFIG_SHADOW_PASSWORDS -----
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+
+          # ----- 开启第三方包 -----
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-turboacc-mtk=y" >> .config
+
+          # ----- 使用 oldconfig -----
+          yes "" | make oldconfig
+
+          # ----- 再次确认 SHADOW_PASSWORDS 关闭 -----
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+
+          # ----- 设备校验 -----
+          if ! grep -q "$DEVICE_ID" .config; then
+            echo "❌ 错误：设备类型 $DEVICE_ID 未正确选中！"
+            exit 1
+          fi
+          echo "✅ 配置已加载：${DEVICE_NAME}‑ubootmod"
+          grep "CONFIG_TARGET_DEVICE" .config || true
+
+      - name: 编译前上传配置
+        uses: actions/upload-artifact@v6
+        with:
+          name: config-before-build
+          path: |
+            ImmortalWrt/feeds.conf.default
+            ImmortalWrt/.config
+
+      - name: 多线程编译
+        if: ${{inputs.multithreading == true}}
+        working-directory: ImmortalWrt
+        run: make -j$(nproc) V=s
+
+      - name: 单线程编译
+        if: ${{inputs.multithreading == false}}
+        working-directory: ImmortalWrt
+        run: make -j1 V=s
+
+      - name: 编译后版本校验并提取版本信息
+        working-directory: ImmortalWrt
+        run: |
+          echo "==== git describe ===="
+          FW_TAG=$(git describe --tags)
+          echo "FW_TAG=$FW_TAG"
+          FW_VERSION=${FW_TAG#v}
+          echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
+          echo "✅ 提取版本号: $FW_VERSION"
+
+          echo "==== profiles.json version ===="
+          cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
+          echo "==== openwrt_release ===="
+          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
+
+      - name: 上传编译结果
+        uses: actions/upload-artifact@v6
+        with:
+          name: ImmortalWrt_${{ env.FW_VERSION }}_${{ env.DEVICE }}
+          path: ImmortalWrt/bin/targets
+
+  # ============================================================
+  # SSH 调试作业（与 build 逻辑一致，仅多出 ssh 步骤）
+  # ============================================================
+  build-ssh:
+    if: ${{inputs.ssh == true}}
+    name: 🚀 编译 (Build) - SSH
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 下载编译所需的依赖
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential ccache ecj fastjar file g++ gawk gettext git libelf-dev libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools python3-pyelftools rsync subversion swig time u-boot-tools unzip wget xsltproc zlib1g-dev
+
+      - name: 克隆当前仓库
+        uses: actions/checkout@v5
+
+      - name: 克隆 ImmortalWrt 官方仓库
+        uses: actions/checkout@v5
+        with:
+          repository: 'immortalwrt/immortalwrt'
+          ref: 'v24.10.6'
+          path: ImmortalWrt
+          fetch-depth: 0
+
+      - name: 校验 git 版本标签
+        working-directory: ImmortalWrt
+        run: |
+          echo "==== git describe ===="
+          git describe
+          echo "==== git status ===="
+          git status
+          echo "==== 当前 commit ===="
+          git log -1 --oneline
+
+      - name: 手动克隆 UA3F 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/SunBK201/UA3F.git package/UA3F
+
+      - name: 克隆 OpenAppFilter (OAF) 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
+
+      - name: 克隆 TurboACC MTK 源码
+        working-directory: ImmortalWrt
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/padavanonly/immortalwrt-mt798x-6.6.git temp_turboacc
+          cd temp_turboacc
+          git sparse-checkout set package/mtk/applications/luci-app-turboacc-mtk
+          cd ..
+          mv temp_turboacc/package/mtk/applications/luci-app-turboacc-mtk package/
+          rm -rf temp_turboacc
+          echo "✅ luci-app-turboacc-mtk 源码已拉取"
+
+      - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
+        working-directory: ImmortalWrt
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/openwrt-packages.git temp_kenzok8
+          cd temp_kenzok8
+          git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
+          cd ..
+          mv temp_kenzok8/quickstart package/
+          mv temp_kenzok8/luci-app-quickstart package/
+          mv temp_kenzok8/luci-app-store package/
+          mv temp_kenzok8/luci-lib-taskd package/
+          mv temp_kenzok8/luci-lib-xterm package/
+          mv temp_kenzok8/taskd package/
+          rm -rf temp_kenzok8
+          echo "✅ quickstart 全部依赖链已拉取"
+
+      - name: 复制自定义配置文件
+        run: cp -f feeds.conf.default diy.sh seed.config *.config ImmortalWrt/ 2>/dev/null || true
+
+      - name: 运行 diy.sh
+        working-directory: ImmortalWrt
+        run: |
+          chmod +x diy.sh
+          ./diy.sh
+
+      - name: 更新并下载 feeds
+        working-directory: ImmortalWrt
+        run: ./scripts/feeds update -a && ./scripts/feeds install -a
+
+      - name: 加载设备配置
+        working-directory: ImmortalWrt
+        run: |
+          rm -f .config
+
+          if [ "${{ env.DEVICE }}" = "WR30U" ]; then
+            CONFIG_FILE="wr30u.config"
+            DEVICE_ID="xiaomi_mi-router-wr30u-ubootmod"
+            DEVICE_NAME="WR30U"
+          else
+            CONFIG_FILE="ax3000t.config"
+            DEVICE_ID="xiaomi_mi-router-ax3000t"
+            DEVICE_NAME="AX3000T"
+          fi
+
+          echo "📦 使用配置文件: $CONFIG_FILE"
+          echo "📦 目标设备: $DEVICE_ID"
+
+          cp "$CONFIG_FILE" .config
+          grep '^CONFIG_PACKAGE_' seed.config >> .config 2>/dev/null || true
+
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-turboacc-mtk=y" >> .config
+
+          yes "" | make oldconfig
+
+          sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
+          echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+
+          if ! grep -q "$DEVICE_ID" .config; then
+            echo "❌ 错误：设备类型 $DEVICE_ID 未正确选中！"
+            exit 1
+          fi
+          echo "✅ 配置已加载：${DEVICE_NAME}‑ubootmod"
+          grep "CONFIG_TARGET_DEVICE" .config || true
+
+      - name: 开启 SSH 服务
+        uses: lhotari/action-upterm@v1
+        with:
+          wait-timeout-minutes: 20
+
+      - name: 编译前上传配置
+        uses: actions/upload-artifact@v6
+        with:
+          name: config-before-build
+          path: |
+            ImmortalWrt/feeds.conf.default
+            ImmortalWrt/.config
+
+      - name: 多线程编译
+        if: ${{inputs.multithreading == true}}
+        working-directory: ImmortalWrt
+        run: make -j$(nproc) V=s
+
+      - name: 单线程编译
+        if: ${{inputs.multithreading == false}}
+        working-directory: ImmortalWrt
+        run: make -j1 V=s
+
+      - name: 编译后版本校验并提取版本信息
+        working-directory: ImmortalWrt
+        run: |
+          echo "==== git describe ===="
+          FW_TAG=$(git describe --tags)
+          echo "FW_TAG=$FW_TAG"
+          FW_VERSION=${FW_TAG#v}
+          echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
+          echo "✅ 提取版本号: $FW_VERSION"
+
+          echo "==== profiles.json version ===="
+          cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
+          echo "==== openwrt_release ===="
+          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
+
+      - name: 上传编译结果
+        uses: actions/upload-artifact@v6
+        with:
+          name: ImmortalWrt_${{ env.FW_VERSION }}_${{ env.DEVICE }}
+          path: ImmortalWrt/bin/targets
