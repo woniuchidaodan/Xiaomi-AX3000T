@@ -10,6 +10,13 @@ on:
           - AX3000T
           - WR30U
         default: AX3000T
+      layout:
+        description: '选择分区布局 (Partition Layout)'
+        type: choice
+        options:
+          - stock
+          - ubootmod
+        default: stock
       multithreading:
         description: '开启多线程编译 (Enable multithreading build)'
         type: boolean
@@ -21,6 +28,7 @@ on:
 
 env:
   DEVICE: ${{ github.event.inputs.device || 'AX3000T' }}
+  LAYOUT: ${{ github.event.inputs.layout || 'stock' }}
 
 jobs:
   build:
@@ -108,25 +116,32 @@ jobs:
         working-directory: ImmortalWrt
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
 
-      # ========== 根据选择的设备加载对应配置 ==========
+      # ========== 根据选择的设备和布局加载对应配置 ==========
       - name: 加载设备配置
         working-directory: ImmortalWrt
         run: |
           rm -f .config
 
-          # ----- 根据设备选择配置文件 -----
+          # ----- 根据设备和布局确定配置文件名 -----
           if [ "${{ env.DEVICE }}" = "WR30U" ]; then
-            CONFIG_FILE="wr30u.config"
-            DEVICE_ID="xiaomi_mi-router-wr30u-ubootmod"
-            DEVICE_NAME="WR30U"
+            DEVICE_BASE="wr30u"
           else
-            CONFIG_FILE="ax3000t.config"
-            DEVICE_ID="xiaomi_mi-router-ax3000t"
-            DEVICE_NAME="AX3000T"
+            DEVICE_BASE="ax3000t"
+          fi
+
+          if [ "${{ env.LAYOUT }}" = "ubootmod" ]; then
+            CONFIG_FILE="${DEVICE_BASE}-ubootmod.config"
+            DEVICE_ID="xiaomi_mi-router-${DEVICE_BASE}-ubootmod"
+            LAYOUT_NAME="ubootmod"
+          else
+            CONFIG_FILE="${DEVICE_BASE}-stock.config"
+            DEVICE_ID="xiaomi_mi-router-${DEVICE_BASE}"
+            LAYOUT_NAME="stock"
           fi
 
           echo "📦 使用配置文件: $CONFIG_FILE"
           echo "📦 目标设备: $DEVICE_ID"
+          echo "📦 分区布局: $LAYOUT_NAME"
 
           cp "$CONFIG_FILE" .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config 2>/dev/null || true
@@ -151,7 +166,7 @@ jobs:
             echo "❌ 错误：设备类型 $DEVICE_ID 未正确选中！"
             exit 1
           fi
-          echo "✅ 配置已加载：${DEVICE_NAME}‑ubootmod"
+          echo "✅ 配置已加载：${DEVICE_BASE^^}-${LAYOUT_NAME}"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 编译前上传配置
@@ -190,7 +205,7 @@ jobs:
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_${{ env.FW_VERSION }}_${{ env.DEVICE }}
+          name: ImmortalWrt_${{ env.FW_VERSION }}_${{ env.DEVICE }}_${{ env.LAYOUT }}
           path: ImmortalWrt/bin/targets
 
   # ============================================================
@@ -283,17 +298,24 @@ jobs:
           rm -f .config
 
           if [ "${{ env.DEVICE }}" = "WR30U" ]; then
-            CONFIG_FILE="wr30u.config"
-            DEVICE_ID="xiaomi_mi-router-wr30u-ubootmod"
-            DEVICE_NAME="WR30U"
+            DEVICE_BASE="wr30u"
           else
-            CONFIG_FILE="ax3000t.config"
-            DEVICE_ID="xiaomi_mi-router-ax3000t"
-            DEVICE_NAME="AX3000T"
+            DEVICE_BASE="ax3000t"
+          fi
+
+          if [ "${{ env.LAYOUT }}" = "ubootmod" ]; then
+            CONFIG_FILE="${DEVICE_BASE}-ubootmod.config"
+            DEVICE_ID="xiaomi_mi-router-${DEVICE_BASE}-ubootmod"
+            LAYOUT_NAME="ubootmod"
+          else
+            CONFIG_FILE="${DEVICE_BASE}-stock.config"
+            DEVICE_ID="xiaomi_mi-router-${DEVICE_BASE}"
+            LAYOUT_NAME="stock"
           fi
 
           echo "📦 使用配置文件: $CONFIG_FILE"
           echo "📦 目标设备: $DEVICE_ID"
+          echo "📦 分区布局: $LAYOUT_NAME"
 
           cp "$CONFIG_FILE" .config
           grep '^CONFIG_PACKAGE_' seed.config >> .config 2>/dev/null || true
@@ -313,7 +335,7 @@ jobs:
             echo "❌ 错误：设备类型 $DEVICE_ID 未正确选中！"
             exit 1
           fi
-          echo "✅ 配置已加载：${DEVICE_NAME}‑ubootmod"
+          echo "✅ 配置已加载：${DEVICE_BASE^^}-${LAYOUT_NAME}"
           grep "CONFIG_TARGET_DEVICE" .config || true
 
       - name: 开启 SSH 服务
@@ -357,5 +379,5 @@ jobs:
       - name: 上传编译结果
         uses: actions/upload-artifact@v6
         with:
-          name: ImmortalWrt_${{ env.FW_VERSION }}_${{ env.DEVICE }}
+          name: ImmortalWrt_${{ env.FW_VERSION }}_${{ env.DEVICE }}_${{ env.LAYOUT }}
           path: ImmortalWrt/bin/targets
