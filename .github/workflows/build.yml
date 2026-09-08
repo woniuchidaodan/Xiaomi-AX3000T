@@ -79,9 +79,9 @@ jobs:
         working-directory: ImmortalWrt
         run: |
           curl -sSL https://raw.githubusercontent.com/mufeng05/turboacc/main/add_turboacc.sh -o add_turboacc.sh && bash add_turboacc.sh
-          echo "✅ TurboACC 已添加（支持 Flow Offloading / 全锥形 NAT）"
+          echo "✅ TurboACC 已添加"
 
-      # ========== quickstart 全家桶（从 kenzok8 源） ==========
+      # ========== quickstart 全家桶 ==========
       - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
         run: |
@@ -98,8 +98,10 @@ jobs:
           rm -rf temp_kenzok8
           echo "✅ quickstart 全部依赖链已拉取"
 
+      # ========== 复制自定义配置文件（不复制 .config） ==========
       - name: 复制自定义配置文件
-        run: cp -f feeds.conf.default diy.sh seed.config *.config ImmortalWrt/ 2>/dev/null || true
+        run: |
+          cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -138,16 +140,21 @@ jobs:
           echo "📦 目标设备: $DEVICE_ID"
           echo "📦 分区布局: $LAYOUT_NAME"
 
-          cp "$CONFIG_FILE" .config
-          grep '^CONFIG_PACKAGE_' seed.config >> .config 2>/dev/null || true
+          # ----- 从仓库根目录复制配置文件 -----
+          if [ ! -f "../$CONFIG_FILE" ]; then
+            echo "❌ 错误：配置文件 ../$CONFIG_FILE 不存在！"
+            exit 1
+          fi
+          cp "../$CONFIG_FILE" .config
+
+          # ----- 追加 seed.config -----
+          if [ -f "../seed.config" ]; then
+            grep '^CONFIG_PACKAGE_' ../seed.config >> .config 2>/dev/null || true
+          fi
 
           # ----- 关闭 CONFIG_SHADOW_PASSWORDS -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-
-          # ----- 开启第三方包（包名已改为 luci-app-turboacc） -----
-          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-turboacc=y" >> .config
 
           # ----- 使用 oldconfig -----
           yes "" | make oldconfig
@@ -204,7 +211,7 @@ jobs:
           path: ImmortalWrt/bin/targets
 
   # ============================================================
-  # SSH 调试作业（与 build 逻辑一致，仅多出 ssh 步骤）
+  # SSH 调试作业
   # ============================================================
   build-ssh:
     if: ${{inputs.ssh == true}}
@@ -247,12 +254,10 @@ jobs:
         run: |
           git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
-      # ========== TurboACC（来自 mufeng05/turboacc）==========
       - name: 添加 TurboACC 源码
         working-directory: ImmortalWrt
         run: |
           curl -sSL https://raw.githubusercontent.com/mufeng05/turboacc/main/add_turboacc.sh -o add_turboacc.sh && bash add_turboacc.sh
-          echo "✅ TurboACC 已添加（支持 Flow Offloading / 全锥形 NAT）"
 
       - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
@@ -268,10 +273,10 @@ jobs:
           mv temp_kenzok8/luci-lib-xterm package/
           mv temp_kenzok8/taskd package/
           rm -rf temp_kenzok8
-          echo "✅ quickstart 全部依赖链已拉取"
 
       - name: 复制自定义配置文件
-        run: cp -f feeds.conf.default diy.sh seed.config *.config ImmortalWrt/ 2>/dev/null || true
+        run: |
+          cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -308,14 +313,18 @@ jobs:
           echo "📦 目标设备: $DEVICE_ID"
           echo "📦 分区布局: $LAYOUT_NAME"
 
-          cp "$CONFIG_FILE" .config
-          grep '^CONFIG_PACKAGE_' seed.config >> .config 2>/dev/null || true
+          if [ ! -f "../$CONFIG_FILE" ]; then
+            echo "❌ 错误：配置文件 ../$CONFIG_FILE 不存在！"
+            exit 1
+          fi
+          cp "../$CONFIG_FILE" .config
+
+          if [ -f "../seed.config" ]; then
+            grep '^CONFIG_PACKAGE_' ../seed.config >> .config 2>/dev/null || true
+          fi
 
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
-
-          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-turboacc=y" >> .config
 
           yes "" | make oldconfig
 
