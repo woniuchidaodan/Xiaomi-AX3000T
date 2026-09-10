@@ -74,13 +74,6 @@ jobs:
         run: |
           git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
-      # ========== TurboACC（来自 chenmozhijin/turboacc，兼容 24.10）==========
-      - name: 添加 TurboACC 源码
-        working-directory: ImmortalWrt
-        run: |
-          curl -sSL https://raw.githubusercontent.com/chenmozhijin/turboacc/luci/add_turboacc.sh -o add_turboacc.sh && bash add_turboacc.sh --no-sfe
-          echo "✅ TurboACC 已添加（来自 chenmozhijin，兼容 24.10）"
-
       # ========== quickstart 全家桶（从 kenzok8 源） ==========
       - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
@@ -98,10 +91,8 @@ jobs:
           rm -rf temp_kenzok8
           echo "✅ quickstart 全部依赖链已拉取"
 
-      # ========== 复制自定义配置文件（不复制 .config） ==========
       - name: 复制自定义配置文件
-        run: |
-          cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
+        run: cp -f feeds.conf.default diy.sh seed.config ax3000t-stock.config ax3000t-ubootmod.config wr30u-stock.config wr30u-ubootmod.config ImmortalWrt/ 2>/dev/null || true
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -155,6 +146,10 @@ jobs:
           # ----- 关闭 CONFIG_SHADOW_PASSWORDS -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
+
+          # ----- 启用简体中文语言（必须放在 oldconfig 之前） -----
+          sed -i '/CONFIG_LUCI_LANG_zh_Hans/d' .config
+          echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 
           # ----- 使用 oldconfig -----
           yes "" | make oldconfig
@@ -254,12 +249,6 @@ jobs:
         run: |
           git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
-      - name: 添加 TurboACC 源码
-        working-directory: ImmortalWrt
-        run: |
-          curl -sSL https://raw.githubusercontent.com/chenmozhijin/turboacc/luci/add_turboacc.sh -o add_turboacc.sh && bash add_turboacc.sh --no-sfe
-          echo "✅ TurboACC 已添加（来自 chenmozhijin，兼容 24.10）"
-
       - name: 从 kenzok8 源拉取 quickstart 及其全部依赖
         working-directory: ImmortalWrt
         run: |
@@ -277,8 +266,7 @@ jobs:
           echo "✅ quickstart 全部依赖链已拉取"
 
       - name: 复制自定义配置文件
-        run: |
-          cp -f feeds.conf.default diy.sh seed.config ImmortalWrt/
+        run: cp -f feeds.conf.default diy.sh seed.config ax3000t-stock.config ax3000t-ubootmod.config wr30u-stock.config wr30u-ubootmod.config ImmortalWrt/ 2>/dev/null || true
 
       - name: 运行 diy.sh
         working-directory: ImmortalWrt
@@ -325,11 +313,18 @@ jobs:
             grep '^CONFIG_PACKAGE_' ../seed.config >> .config 2>/dev/null || true
           fi
 
+          # ----- 关闭 CONFIG_SHADOW_PASSWORDS -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
+          # ----- 启用简体中文语言（必须放在 oldconfig 之前） -----
+          sed -i '/CONFIG_LUCI_LANG_zh_Hans/d' .config
+          echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
+
+          # ----- 使用 oldconfig -----
           yes "" | make oldconfig
 
+          # ----- 再次确认 SHADOW_PASSWORDS 关闭 -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
