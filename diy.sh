@@ -24,15 +24,16 @@ chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
 # src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/routing
 # EOF
 
-# ========== 吉林大学镜像站（已注释，按需启用）==========
-# mkdir -p package/base-files/files/etc/opkg
-# cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
-# src/gz openwrt_base http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/base
-# src/gz openwrt_luci http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/luci
-# src/gz openwrt_packages http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/packages
-# src/gz openwrt_routing http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/routing
-# src/gz openwrt_telephony http://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/telephony
-# EOF
+# ========== 吉林大学镜像站（已启用）==========
+mkdir -p package/base-files/files/etc/opkg
+cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
+src/gz immortalwrt_core https://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/targets/mediatek/filogic/packages
+src/gz immortalwrt_base https://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/base
+src/gz immortalwrt_luci https://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/luci
+src/gz immortalwrt_packages https://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/packages
+src/gz immortalwrt_routing https://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/routing
+src/gz immortalwrt_telephony https://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/packages/aarch64_cortex-a53/telephony
+EOF
 
 # ========== 设置默认 WiFi 名称和密码（双频合一）==========
 mkdir -p package/base-files/files/etc/config
