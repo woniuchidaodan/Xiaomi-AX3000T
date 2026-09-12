@@ -1,8 +1,23 @@
 #!/bin/bash
 
-sed -i 's/192.168.1.1/192.168.1.2/g' package/base-files/files/bin/config_generate
-sed -i 's/ImmortalWrt/WR30U/g' package/base-files/files/bin/config_generate
+# ========== 根据 DEVICE 变量确定主机名 ==========
+if [ "$DEVICE" = "AX3000T" ]; then
+    HOSTNAME="AX3000T"
+elif [ "$DEVICE" = "WR30U" ]; then
+    HOSTNAME="WR30U"
+else
+    HOSTNAME="ImmortalWrt"
+fi
 
+echo "📦 当前设备: $DEVICE，主机名将设置为: $HOSTNAME"
+
+# ========== 修改默认 IP ==========
+sed -i 's/192.168.1.1/192.168.1.2/g' package/base-files/files/bin/config_generate
+
+# ========== 修改主机名（动态） ==========
+sed -i "s/ImmortalWrt/$HOSTNAME/g" package/base-files/files/bin/config_generate
+
+# ========== 设置 Argon 主题为默认 ==========
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-set-argon-theme << 'EOT'
 if [ -d "/www/luci-static/argon" ]; then
@@ -13,28 +28,7 @@ exit 0
 EOT
 chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
 
-# ========== 清理所有旧的 opkg 源配置 ==========
-echo "🧹 清理旧的 opkg 源配置..."
-find package/ target/ -name "distfeeds.conf" -path "*/opkg/*" -exec rm -f {} \; 2>/dev/null
-find package/ target/ -name "customfeeds.conf" -path "*/opkg/*" -exec rm -f {} \; 2>/dev/null
-grep -rl "vsean.net" package/ target/ 2>/dev/null | while read -r file; do
-    echo "  ⚠️ 发现 vsean.net 引用，清理: $file"
-    sed -i '/vsean\.net/d' "$file"
-done
-
-# ========== distfeeds.conf（默认：dl.openwrt.ai 第三方源，已注释）==========
-# mkdir -p package/base-files/files/etc/opkg
-# cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
-# src/gz openwrt_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
-# src/gz openwrt_small_flash https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/small_flash
-# src/gz openwrt_base https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/base
-# src/gz openwrt_luci https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/luci
-# src/gz openwrt_packages https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/packages
-# src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/routing
-# EOF
-
 # ========== 吉林大学镜像站（唯一源）==========
-echo "📦 写入吉林大学镜像站..."
 mkdir -p package/base-files/files/etc/opkg
 cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
 src/gz immortalwrt_core https://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/targets/mediatek/filogic/packages
@@ -80,5 +74,3 @@ config wifi-iface 'default_radio1'
     option encryption 'psk2'
     option key '123456789'
 EOF
-
-# ========== 已删除伪造 /etc/openwrt_release ==========
