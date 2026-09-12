@@ -33,10 +33,10 @@ jobs:
           name: ImmortalWrt_${{ inputs.fw_version }}_${{ inputs.device }}_${{ inputs.layout }}
           path: ./firmware
 
-      - name: 列出产物文件
+      - name: 列出所有产物文件
         run: |
           echo "==== 固件文件列表 ===="
-          find ./firmware -type f | head -50
+          find ./firmware -type f -exec ls -lh {} \; | sort
 
       - name: 🚀 发布到 GitHub Release
         uses: softprops/action-gh-release@v2
@@ -58,14 +58,14 @@ jobs:
             ## 🚀 包含功能
 
             - ✅ **TurboACC 网络加速**：Flow Offloading、全锥形 NAT、BBR 拥塞控制
-            - ✅ **UA3F 代理**：单包集成，支持中文
+            - ✅ **UA3F 代理**：校园防检测，电商等，已集成ttl
             - ✅ **OpenAppFilter (OAF)**：新版应用过滤
             - ✅ **QuickStart + 应用商店**：快速上手与在线安装插件
             - ✅ **值守式升级**：支持 Web 界面与 CLI (`owut`)
             - ✅ **Argon 主题**：现代化 LuCI 界面
             - ✅ **中文语言支持**：完整中文翻译
             - ✅ **ZRAM 内存优化**：256MB 内存的救星
-            - ✅ **kmod-mtd-rw**：MTD 写保护解锁工具，解锁分区，解决无网络情况下uboot刷写不成功时，通过命令解锁分区，强制刷写新uboot，搭配过度固件使用
+            - ✅ **kmod-mtd-rw**：MTD 写保护解锁工具，解锁分区，解决无网络情况下 uboot 刷写不成功时，通过命令解锁分区，强制刷写新 uboot，搭配过渡固件使用
 
             ## 📦 固件文件
 
@@ -84,16 +84,22 @@ jobs:
 
             ## ⚠️ 刷机提示
 
-            1. 进入 H大 uboot，选择 **`immortalwrt-112m`** 布局
-            2. 上传 `squashfs-sysupgrade.bin` 或 `.itb`
-            3. 等待自动重启，访问 `192.168.1.2`
+            - **WR30U**：如果刷了 H大 uboot，**只能选择stock 编译**，不支持 `immortalwrt-112m` 和 `qwrt` 布局。
+            - **小米 AX3000T**：可选择 **stock 布局** 或 **uboot 布局**，编译时选对应布局并刷入。
+            > 刷机有风险，注意备份文件数据，请务必早上或者晚上刷机。
+
 
             > 💡 刷机后请进入 **网络 → TurboACC**，全锥形 NAT 选择“兼容”模式。
           files: |
             firmware/**/*.bin
             firmware/**/*.itb
             firmware/**/*.ubi
+            firmware/**/*.fip
             firmware/**/*.manifest
+            firmware/**/*.txt
+            firmware/**/*.json
+            firmware/**/*.tar.gz
+            firmware/**/*.tar
           draft: false
           prerelease: false
           generate_release_notes: false
