@@ -30,11 +30,15 @@ env:
   DEVICE: ${{ github.event.inputs.device || 'AX3000T' }}
   LAYOUT: ${{ github.event.inputs.layout || 'stock' }}
 
+permissions: write-all
+
 jobs:
   build:
     if: ${{inputs.ssh == false}}
     runs-on: ubuntu-22.04
     name: 🚀 编译 (Build)
+    outputs:
+      fw_version: ${{ steps.extract-version.outputs.fw_version }}
     steps:
       - name: 下载编译所需的依赖
         run: |
@@ -117,7 +121,6 @@ jobs:
         run: |
           rm -f .config
 
-          # ----- 根据设备和布局确定配置文件名 -----
           if [ "${{ env.DEVICE }}" = "WR30U" ]; then
             DEVICE_BASE="wr30u"
           else
@@ -138,34 +141,27 @@ jobs:
           echo "📦 目标设备: $DEVICE_ID"
           echo "📦 分区布局: $LAYOUT_NAME"
 
-          # ----- 从仓库根目录复制配置文件 -----
           if [ ! -f "../$CONFIG_FILE" ]; then
             echo "❌ 错误：配置文件 ../$CONFIG_FILE 不存在！"
             exit 1
           fi
           cp "../$CONFIG_FILE" .config
 
-          # ----- 追加 seed.config -----
           if [ -f "../seed.config" ]; then
             grep '^CONFIG_PACKAGE_' ../seed.config >> .config 2>/dev/null || true
           fi
 
-          # ----- 关闭 CONFIG_SHADOW_PASSWORDS -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
-          # ----- 启用简体中文语言（必须放在 oldconfig 之前） -----
           sed -i '/CONFIG_LUCI_LANG_zh_Hans/d' .config
           echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 
-          # ----- 使用 oldconfig -----
           yes "" | make oldconfig
 
-          # ----- 再次确认 SHADOW_PASSWORDS 关闭 -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
-          # ----- 设备校验 -----
           if ! grep -q "$DEVICE_ID" .config; then
             echo "❌ 错误：设备类型 $DEVICE_ID 未正确选中！"
             exit 1
@@ -192,6 +188,7 @@ jobs:
         run: make -j1 V=s
 
       - name: 编译后版本校验并提取版本信息
+        id: extract-version
         working-directory: ImmortalWrt
         run: |
           echo "==== git describe ===="
@@ -199,6 +196,7 @@ jobs:
           echo "FW_TAG=$FW_TAG"
           FW_VERSION=${FW_TAG#v}
           echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
+          echo "fw_version=$FW_VERSION" >> $GITHUB_OUTPUT
           echo "✅ 提取版本号: $FW_VERSION"
 
           echo "==== profiles.json version ===="
@@ -211,6 +209,20 @@ jobs:
         with:
           name: ImmortalWrt_${{ env.FW_VERSION }}_${{ env.DEVICE }}_${{ env.LAYOUT }}
           path: ImmortalWrt/bin/targets
+
+  # ============================================================
+  # 📦 调用独立发布工作流
+  # ============================================================
+  release:
+    name: 📦 发布固件
+    needs: build
+    if: ${{ needs.build.result == 'success' }}
+    uses: ./.github/workflows/release.yml
+    with:
+      device: ${{ github.event.inputs.device || 'AX3000T' }}
+      layout: ${{ github.event.inputs.layout || 'stock' }}
+      fw_version: ${{ needs.build.outputs.fw_version }}
+      run_number: ${{ github.run_number }}
 
   # ============================================================
   # SSH 调试作业（与 build 逻辑一致，仅多出 ssh 步骤）
@@ -256,7 +268,6 @@ jobs:
         run: |
           git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
-      # ========== TurboACC（来自 chenmozhijin/turboacc）==========
       - name: 添加 TurboACC 源码
         working-directory: ImmortalWrt
         run: |
@@ -327,18 +338,14 @@ jobs:
             grep '^CONFIG_PACKAGE_' ../seed.config >> .config 2>/dev/null || true
           fi
 
-          # ----- 关闭 CONFIG_SHADOW_PASSWORDS -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
-          # ----- 启用简体中文语言（必须放在 oldconfig 之前） -----
           sed -i '/CONFIG_LUCI_LANG_zh_Hans/d' .config
           echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 
-          # ----- 使用 oldconfig -----
           yes "" | make oldconfig
 
-          # ----- 再次确认 SHADOW_PASSWORDS 关闭 -----
           sed -i '/CONFIG_SHADOW_PASSWORDS/d' .config
           echo "# CONFIG_SHADOW_PASSWORDS is not set" >> .config
 
@@ -373,6 +380,7 @@ jobs:
         run: make -j1 V=s
 
       - name: 编译后版本校验并提取版本信息
+        id: extract-version-ssh
         working-directory: ImmortalWrt
         run: |
           echo "==== git describe ===="
@@ -380,6 +388,7 @@ jobs:
           echo "FW_TAG=$FW_TAG"
           FW_VERSION=${FW_TAG#v}
           echo "FW_VERSION=$FW_VERSION" >> $GITHUB_ENV
+          echo "fw_version=$FW_VERSION" >> $GITHUB_OUTPUT
           echo "✅ 提取版本号: $FW_VERSION"
 
           echo "==== profiles.json version ===="
