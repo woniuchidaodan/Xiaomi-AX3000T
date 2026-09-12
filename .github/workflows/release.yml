@@ -1,0 +1,101 @@
+name: 📦 发布固件 (Release)
+
+on:
+  workflow_call:
+    inputs:
+      device:
+        description: '设备名称'
+        required: true
+        type: string
+      layout:
+        description: '分区布局'
+        required: true
+        type: string
+      fw_version:
+        description: '固件版本'
+        required: true
+        type: string
+      run_number:
+        description: '编译编号'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    name: 📦 发布 ${{ inputs.device }} (${{ inputs.layout }})
+    permissions:
+      contents: write
+    steps:
+      - name: 下载编译产物
+        uses: actions/download-artifact@v4
+        with:
+          name: ImmortalWrt_${{ inputs.fw_version }}_${{ inputs.device }}_${{ inputs.layout }}
+          path: ./firmware
+
+      - name: 列出产物文件
+        run: |
+          echo "==== 固件文件列表 ===="
+          find ./firmware -type f | head -50
+
+      - name: 🚀 发布到 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.fw_version }}-${{ inputs.device }}-${{ inputs.layout }}-${{ inputs.run_number }}
+          name: "ImmortalWrt-${{ inputs.device }}-${{ inputs.fw_version }}"
+          body: |
+            # ImmortalWrt ${{ inputs.fw_version }} | ${{ inputs.device }} (${{ inputs.layout }})
+
+            ## 📋 固件信息
+
+            | 项目 | 值 |
+            |------|-----|
+            | **设备** | ${{ inputs.device }} |
+            | **分区布局** | ${{ inputs.layout }} |
+            | **版本** | ${{ inputs.fw_version }} |
+            | **编译编号** | #${{ inputs.run_number }} |
+
+            ## 🚀 包含功能
+
+            - ✅ **TurboACC 网络加速**：Flow Offloading、全锥形 NAT、BBR 拥塞控制
+            - ✅ **UA3F 代理**：单包集成，支持中文
+            - ✅ **OpenAppFilter (OAF)**：新版应用过滤
+            - ✅ **QuickStart + 应用商店**：快速上手与在线安装插件
+            - ✅ **值守式升级**：支持 Web 界面与 CLI (`owut`)
+            - ✅ **Argon 主题**：现代化 LuCI 界面
+            - ✅ **中文语言支持**：完整中文翻译
+            - ✅ **ZRAM 内存优化**：256MB 内存的救星
+            - ✅ **kmod-mtd-rw**：MTD 写保护解锁工具，解锁分区，解决无网络情况下uboot刷写不成功时，通过命令解锁分区，强制刷写新uboot，搭配过度固件使用
+
+            ## 📦 固件文件
+
+            请在下方 **Assets** 中下载：
+
+            - `*-squashfs-sysupgrade.bin` / `*.itb` — **主固件（刷这个）**
+            - `*-initramfs-*.ubi` / `*.bin` — 临时启动或救砖
+            - `*.manifest` — 软件包清单
+
+            ## 📝 默认配置
+
+            - **IP 地址**: `192.168.1.2`
+            - **主机名**: `WR30U` / `AX3000T`
+            - **Wi-Fi SSID**: `CMCC-7921`
+            - **Wi-Fi 密码**: `123456789`
+
+            ## ⚠️ 刷机提示
+
+            1. 进入 H大 uboot，选择 **`immortalwrt-112m`** 布局
+            2. 上传 `squashfs-sysupgrade.bin` 或 `.itb`
+            3. 等待自动重启，访问 `192.168.1.2`
+
+            > 💡 刷机后请进入 **网络 → TurboACC**，全锥形 NAT 选择“兼容”模式。
+          files: |
+            firmware/**/*.bin
+            firmware/**/*.itb
+            firmware/**/*.ubi
+            firmware/**/*.manifest
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
