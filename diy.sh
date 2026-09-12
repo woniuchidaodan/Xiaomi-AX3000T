@@ -13,7 +13,16 @@ exit 0
 EOT
 chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
 
-# ========== distfeeds.conf（默认：dl.openwrt.ai 第三方源）==========
+# ========== 清理所有旧的 opkg 源配置 ==========
+echo "🧹 清理旧的 opkg 源配置..."
+find package/ target/ -name "distfeeds.conf" -path "*/opkg/*" -exec rm -f {} \; 2>/dev/null
+find package/ target/ -name "customfeeds.conf" -path "*/opkg/*" -exec rm -f {} \; 2>/dev/null
+grep -rl "vsean.net" package/ target/ 2>/dev/null | while read -r file; do
+    echo "  ⚠️ 发现 vsean.net 引用，清理: $file"
+    sed -i '/vsean\.net/d' "$file"
+done
+
+# ========== distfeeds.conf（默认：dl.openwrt.ai 第三方源，已注释）==========
 # mkdir -p package/base-files/files/etc/opkg
 # cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
 # src/gz openwrt_kiddin9 https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/kiddin9
@@ -24,7 +33,8 @@ chmod +x package/base-files/files/etc/uci-defaults/99-set-argon-theme
 # src/gz openwrt_routing https://dl.openwrt.ai/packages-24.10/aarch64_cortex-a53/routing
 # EOF
 
-# ========== 吉林大学镜像站（已启用）==========
+# ========== 吉林大学镜像站（唯一源）==========
+echo "📦 写入吉林大学镜像站..."
 mkdir -p package/base-files/files/etc/opkg
 cat > package/base-files/files/etc/opkg/distfeeds.conf << 'EOF'
 src/gz immortalwrt_core https://mirrors.jlu.edu.cn/immortalwrt/releases/24.10.6/targets/mediatek/filogic/packages
