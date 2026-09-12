@@ -54,6 +54,7 @@ jobs:
             | **分区布局** | ${{ inputs.layout }} |
             | **版本** | ${{ inputs.fw_version }} |
             | **编译编号** | #${{ inputs.run_number }} |
+            | **默认软件源** | 吉林大学镜像站 (mirrors.jlu.edu.cn) |
 
             ## 🚀 包含功能
 
